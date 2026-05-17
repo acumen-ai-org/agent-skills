@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "agent-skills",
+  "version": "0.1.0",
+  "description": "Reusable agent Skills as portable workflows.",
+  "author": {
+    "name": "Acumen AI Pty Ltd",
+    "email": "fredrik@acumen-ai.org",
+    "url": "https://github.com/acumen-ai-org"
+  },
+  "homepage": "https://github.com/acumen-ai-org/agent-skills",
+  "repository": "https://github.com/acumen-ai-org/agent-skills",
+  "license": "AGPL-3.0-only OR LicenseRef-Commercial",
+  "keywords": ["skills", "agents", "content-to-image", "infographic", "workflow"]
+}

@@ -8,7 +8,7 @@ Each subdirectory is one self-contained Skill: a `SKILL.md` plus its
 
 | Skill | Description |
 | --- | --- |
-| [content-to-image](content-to-image/SKILL.md) | Convert a piece of text into a single explanatory illustration via a 3-step pipeline (extract → art-direct → prompt-synth), then render via `gpt-image-2`. |
+| [content-to-image](content-to-image/SKILL.md) | Convert a piece of text into a single explanatory illustration via a 3-step pipeline (extract → art-direct → prompt-synth), then render with gpt-image (Azure Foundry or the OpenAI API). |
 
 ## Adding a Skill
 

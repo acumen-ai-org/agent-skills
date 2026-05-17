@@ -42,6 +42,7 @@ Write the doc as if a new engineer is reading it cold, with no knowledge of what
 
 | Path             | Holds                                                                   |
 | ---------------- | ----------------------------------------------------------------------- |
+| `.claude-plugin/` | `plugin.json` + `marketplace.json` — this repo as an installable plugin. |
 | `skills/<name>/` | One self-contained Skill: `SKILL.md` + `references/` + `scripts/`.      |
 | `agents/`        | Shared agent roles reused across more than one Skill.                   |
 | `docs/`          | How to author Skills/agents and how the repo is structured.             |
@@ -62,7 +63,10 @@ rule as `agents/`). Detail:
 | New to the repo                  | [docs/repository-structure.md](docs/repository-structure.md) |
 | Deciding Skill vs subagent       | [docs/skills-vs-agents.md](docs/skills-vs-agents.md)         |
 | Writing or editing a `SKILL.md`  | [docs/authoring-skills.md](docs/authoring-skills.md)         |
+| Packaging/installing the plugin  | [docs/plugin-and-marketplace.md](docs/plugin-and-marketplace.md) |
 | Writing an agent/role definition | [docs/authoring-agents.md](docs/authoring-agents.md)         |
+| Choosing/placing a dev-tooling tool | [docs/dev-skill-taxonomy.md](docs/dev-skill-taxonomy.md) |
+| Building/extending the dev-tooling Skills | [docs/tools_implementation.md](docs/tools_implementation.md) |
 
 Full index: [docs/README.md](docs/README.md).
 

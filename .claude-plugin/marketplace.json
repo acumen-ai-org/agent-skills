@@ -1,0 +1,18 @@
+{
+  "name": "acumen-agent-skills",
+  "owner": {
+    "name": "Acumen AI Pty Ltd",
+    "email": "fredrik@acumen-ai.org"
+  },
+  "description": "Acumen AI's catalog of reusable Claude Code agent Skills.",
+  "plugins": [
+    {
+      "name": "agent-skills",
+      "source": ".",
+      "description": "Reusable agent Skills as portable workflows.",
+      "license": "AGPL-3.0-only OR LicenseRef-Commercial",
+      "category": "productivity",
+      "keywords": ["skills", "content-to-image", "infographic", "workflow"]
+    }
+  ]
+}

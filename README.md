@@ -20,6 +20,22 @@ Use without a signed commercial agreement is governed solely by the AGPLv3,
 including its source-availability and network-use obligations. To obtain a
 commercial license, contact **fredrik@acumen-ai.org**.
 
+## Install as a Claude Code plugin
+
+This repo is also a Claude Code **plugin** and its own single-plugin
+**marketplace**.
+
+```text
+/plugin marketplace add https://github.com/acumen-ai-org/agent-skills
+/plugin install agent-skills@acumen-agent-skills
+```
+
+The skill is then available as `/agent-skills:content-to-image`. To develop
+locally without installing: `claude --plugin-dir .`. Schemas, versioning, and
+the reason the marketplace is named `acumen-agent-skills` (the name
+`agent-skills` is reserved by Anthropic) are in
+[docs/plugin-and-marketplace.md](docs/plugin-and-marketplace.md).
+
 ## Quick start
 
 1. Point your agent at this repo (or symlink `skills/` into your project).
@@ -31,6 +47,7 @@ commercial license, contact **fredrik@acumen-ai.org**.
 
 ```
 agent-skills/
+├── .claude-plugin/           # plugin.json + marketplace.json (installable plugin)
 ├── CLAUDE.md                 # entry point for agents working in this repo
 ├── README.md                 # this file
 ├── LICENSE                   # AGPLv3 (community use)
