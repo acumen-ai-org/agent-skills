@@ -22,6 +22,7 @@ This config covers the parts the skills act on plus the report/blob behavior.
   - [reports](#reports)
   - [releaseNotes](#releasenotes)
   - [blob](#blob)
+  - [modules](#modules)
 - [Blob storage credentials](#blob-storage-credentials)
 - [gitignore the report dir](#gitignore-the-report-dir)
 
@@ -138,6 +139,54 @@ the phase-1/phase-2 seam.
 The publish finalize step uploads the reports that `persistInRepo` does **not**
 keep, so large/media artifacts stay out of git history while still being
 archived.
+
+### modules
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `modules` | `[]` | Array of folder-pattern strings partitioning the repo into modules. Empty `[]` ⇒ no module dimension; the feature is inert and callers treat it as absent. |
+
+A pattern is either a literal folder name (`core`) or a one-level glob
+(`modules/*`). `scripts/modules.py` is the single source of the resolution
+rule; the orchestrator and report producers call it rather than reimplementing
+matching.
+
+**Path → module id.** Given the patterns and a repo-relative forward-slash
+path:
+
+- Literal pattern `X` (no `*`): if the path's first segment is `X`, the module
+  id is `X`.
+- Glob pattern `P/*`: any path whose leading segments are `P/<sub>` — the
+  subfolder itself or anything beneath it — has module id `P/<sub>`. Examples
+  (pattern `modules/*`): `modules/payments` → `modules/payments`,
+  `modules/payments/api/x.ts` → `modules/payments`.
+- The longest / most-specific matching pattern wins. Patterns are evaluated by
+  descending matched-prefix length for determinism.
+- No pattern matches — any root-level file, or any folder not covered by a
+  pattern — → module id `root`.
+- The bare glob parent itself (`modules` with no subsegment) resolves to
+  `root`. A file placed directly under `P/` with no subfolder cannot be
+  told apart from a subfolder by path alone, so it takes id `P/<name>`; in
+  practice `P/*` parents hold subfolders, and the repo→set list below only
+  includes real subdirectories, so the report's module selector reflects the
+  actual modules.
+
+**Repo → module set.** The resolved set for a repo is `{ "root" }` ∪ each
+literal pattern that exists as a top-level folder ∪ `P/<sub>` for each direct
+subfolder of each `P/*` pattern's `P`. `root` is always present. Empty patterns
+⇒ the set is exactly `{ "root" }` and the dimension is treated as absent.
+
+`scripts/modules.py` exposes this rule directly:
+
+- `python3 scripts/modules.py id <path> --patterns "core,foundation,modules/*"`
+  — prints the single module id for `<path>`. Exit `0`; `1` on bad args. No
+  git or repo access needed.
+- `python3 scripts/modules.py list --patterns "core,foundation,modules/*" --repo <dir>`
+  — prints the resolved module set, one id per line, `root` first then the
+  rest lexically. Exit `0`; `1` bad args; `5` if `--repo` is not a directory.
+- `--config <dev-process.json>` is an alternative to `--patterns`: the
+  `modules` array is read from the config. With neither flag the pattern list
+  is empty and only `root` is yielded.
 
 ## Blob storage credentials
 

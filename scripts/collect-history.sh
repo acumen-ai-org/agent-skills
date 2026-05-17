@@ -63,6 +63,7 @@ import sys
 out_path = sys.argv[1]
 refs = os.environ["REFS"].split()
 repo = os.environ["REPO"]
+repo_abs = os.path.abspath(repo)
 
 
 def author_for(repo_path, older, newer):
@@ -126,7 +127,8 @@ with open(os.environ["NUMSTAT"], encoding="utf-8") as handle:
             folder, {"files_changed": 0, "files": {}}
         )
         folder_node["files_changed"] += 1
-        folder_node["files"][name] = folder_node["files"].get(name, 0) + 1
+        file_entry = folder_node["files"].setdefault(name, {"count": 0, "path": path})
+        file_entry["count"] += 1
 
 for index in range(len(refs) - 1):
     older = refs[index]
@@ -167,14 +169,21 @@ for extension, ext_node in sorted(
         key=lambda kv: (-kv[1]["files_changed"], kv[0]),
     ):
         files_sorted = [
-            {"file": name, "files_changed": count}
-            for name, count in sorted(
-                folder_node["files"].items(), key=lambda kv: (-kv[1], kv[0])
+            {
+                "file": name,
+                "files_changed": entry["count"],
+                "path": entry["path"],
+            }
+            for name, entry in sorted(
+                folder_node["files"].items(),
+                key=lambda kv: (-kv[1]["count"], kv[0]),
             )
         ]
+        folder_path = "" if folder == "(root)" else folder
         folders_sorted.append(
             {
                 "folder": folder,
+                "path": folder_path,
                 "files_changed": folder_node["files_changed"],
                 "files": files_sorted,
             }
@@ -189,7 +198,12 @@ for extension, ext_node in sorted(
 
 with open(out_path, "w", encoding="utf-8") as handle:
     json.dump(
-        {"refs": refs, "pairs": pairs, "extension_tree": extension_tree_sorted},
+        {
+            "repo": repo_abs,
+            "refs": refs,
+            "pairs": pairs,
+            "extension_tree": extension_tree_sorted,
+        },
         handle,
         indent=2,
         sort_keys=True,

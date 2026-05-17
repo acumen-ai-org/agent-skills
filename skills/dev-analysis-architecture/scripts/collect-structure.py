@@ -17,6 +17,9 @@ It produces one raw JSON in <out_dir> carrying:
   - adrs: every Architecture Decision Record found via the configurable glob
     set, with path, title, and status.
   - stacks: the languages whose import syntax was matched, for the role.
+  - config: the path to <repo>/dev-process.json when it exists, else null,
+    so to-fragment.py can resolve per-path module ids via the shared
+    scripts/modules.py resolver.
 
 Languages scanned by import/reference syntax: TS/JS (import / require),
 Python (import / from), C#/F# (using + .csproj/.fsproj <ProjectReference>),
@@ -383,9 +386,12 @@ def main():
     nodes, edges, stacks = collect_edges(repo, ref, files)
     adrs = collect_adrs(repo, ref, files)
 
+    config_path = repo / "dev-process.json"
+
     raw = {
         "kind": "architecture-source",
         "repo": str(repo),
+        "config": str(config_path) if config_path.is_file() else None,
         "ref": ref,
         "stacks": stacks,
         "nodes": nodes,

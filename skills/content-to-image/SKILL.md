@@ -156,6 +156,13 @@ kept regardless of `$KEEP_FILES`.
   is `2025-04-01-preview`.
 - **Rate limit (HTTP 429)** → ~10/min; for batches > 10, render in waves with
   a 30s sleep between waves.
+- **Upstream overload (Foundry "EngineOverloaded", HTTP 429/503, or a body
+  mentioning "overloaded"/"capacity")** → handled automatically by
+  `render.sh`: a Foundry overload first falls back once to OpenAI if
+  `OPENAI_API_KEY` is set, then (if still overloaded or no fallback exists)
+  retries the active provider after 5s, 15s, 30s backoff. Only after all of
+  these fail does it exit 2 with an upstream-overload message. Non-overload
+  errors (auth, bad request, network) are not retried.
 
 ## Exit codes
 

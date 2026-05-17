@@ -21,6 +21,7 @@ tool, then `to-fragment.py` emits the fragment. Scripts write only facts; the
 - [Picking the analyzer](#picking-the-analyzer)
 - [Procedure](#procedure)
 - [Tool-free fallback](#tool-free-fallback)
+- [Module dimension](#module-dimension)
 - [The fragment it emits](#the-fragment-it-emits)
 - [Authoring layering rules](#authoring-layering-rules)
 - [F# limitation](#f-limitation)
@@ -175,6 +176,25 @@ Every `run-*.sh` wrapper is untouched: each still exits `3` (with its install
 and pinned-run lines) when its runtime is absent. The fallback is selected by
 this guidance when all of them do, not by rewriting any runner.
 
+## Module dimension
+
+The tool-free path's per-file listing table and ADR table each carry a
+`type: "module"` column so the framework's global `Module:` selector can
+filter their rows. The id for a row's path comes from the shared resolver —
+`scripts/modules.py id <repo-relative-path> --config <repo>/dev-process.json`
+— shelled out by `to-fragment.py`; the resolution rule is never reimplemented
+here. `collect-structure.py` records the `<repo>/dev-process.json` location in
+its raw so `to-fragment.py` can find the config.
+
+With no `dev-process.json` or an empty `modules` array the resolver returns
+`root` for every path, so the column is present but inert (every row stays
+visible under any selection) — no special-casing.
+
+The whole-repo structural views — the dependency `d3-graph`, the import-flow
+`sankey`, and the C4 `mermaid` — are repo-wide by construction and stay
+module-agnostic (no section `module`), so they always show regardless of the
+selector.
+
 ## The fragment it emits
 
 One fragment, `category: architecture`, `schema: dev-report-fragment/v1`.
@@ -188,8 +208,11 @@ One fragment, `category: architecture`, `schema: dev-report-fragment/v1`.
   cycles exist, a `Rule violations` table when the analyzer reported any. Above
   300 nodes the graph is replaced by a note (the metrics and tables stay
   authoritative) so the report stays renderable. The tool-free path adds a
-  `sankey` of import flow (weighted by import count), a C4 `mermaid`, and an
-  ADR `table` + `markdown` index, and may set the graph `layout` to `chord`.
+  `sankey` of import flow (weighted by import count), a C4 `mermaid`, a
+  per-file listing `table`, and an ADR `table` + `markdown` index, and may set
+  the graph `layout` to `chord`. The listing and ADR tables carry a
+  `type: "module"` column (see [Module dimension](#module-dimension)); the
+  graph, sankey, and C4 stay module-agnostic.
 - `status` — `ok` (clean), `warn` (cycles or advisory violations), `error`
   (a blocking layering violation; runner exits `4`).
 

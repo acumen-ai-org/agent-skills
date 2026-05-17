@@ -52,6 +52,31 @@ body {
   margin-top: 4px;
 }
 
+#release-header .release-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.release-badge {
+  font-weight: 600;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+}
+
+.release-badge.latest {
+  background: var(--ok);
+  color: #0f1419;
+}
+
+.release-badge.superseded {
+  background: var(--warn);
+  color: #0f1419;
+}
+
 #release-header .rollup {
   margin-top: 8px;
   display: flex;
@@ -68,7 +93,31 @@ body {
 
 #view-controls {
   margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
 }
+
+#module-filter {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#module-select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 13px;
+  max-width: 180px;
+}
+
+#module-select:hover { border-color: var(--accent); }
 
 button {
   background: var(--panel-2);

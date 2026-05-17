@@ -21,6 +21,7 @@ the Skill. The scripts are run, not read:
 - [Inputs](#inputs)
 - [The fragment contract at a glance](#the-fragment-contract-at-a-glance)
 - [Layout and UI](#layout-and-ui)
+- [Module filter](#module-filter)
 - [Procedure](#procedure)
 - [Apply design](#apply-design)
 - [Standalone viewing and the file:// caveat](#standalone-viewing-and-the-file-caveat)
@@ -41,7 +42,8 @@ are flags.
 | `<reports-root>` | yes      | The `reports/` dir to create/update. |
 | `--vcs-ref REF`  | no       | Tag/branch recorded in the manifests; `null` if omitted. |
 | `--label TEXT`   | no       | Human label; defaults to `<release-id>`. Recorded but not the displayed title (see [Layout and UI](#layout-and-ui)). |
-| `--commits N`    | no       | Records `commit_count` in the manifest; the renderer formats the title as `YYYY-MM-DD Release: N commits`. Omitted ⇒ the `: N commits` clause is dropped. |
+| `--commits N`    | no       | Records `commit_count` in the manifest; the renderer formats the title as `YYYY-MM-DD · <release-id> · N commits`. Omitted ⇒ the `· N commits` clause is dropped. |
+| `--modules LIST` | no       | Comma-separated opaque module ids written verbatim into the manifest as `modules`; seeds the global module filter (see [Layout and UI](#layout-and-ui)). Omitted ⇒ no `modules` key. |
 | `--no-embed`     | no       | Skip inlining data into `index.html` (served mode, very large reports). |
 | `--design FILE`  | no       | Retheme: extract every CSS `:root{...}` block from `FILE` and inject it as `<style id="design-override">` after the app.css link. No `:root` block → non-fatal stderr notice, default theme, exit 0. See [Apply design](#apply-design). |
 
@@ -63,9 +65,10 @@ diff surface). Each `body[]` element is one of ten typed sections (`markdown`,
 `table`, `key-value`, `metric-cards`, `d3-graph`, `sankey`, `treemap`,
 `heatmap`, `mermaid`, `image`); an unknown type renders a visible placeholder,
 never a failure. A section MAY also carry `view` (`"release"|"delta"`,
-absent ⇒ `"release"`) and `files[]` (producer-embedded excerpts opened in a
-preview modal). A `table` row MAY carry `children[]` (expandable subrows) and
-a `table` column MAY be `type:"file"`.
+absent ⇒ `"release"`), `module` (an opaque module-id tag), and `files[]`
+(producer-embedded excerpts opened in a preview modal). A `table` row MAY
+carry `children[]` (expandable subrows) and a `table` column MAY be
+`type:"file"` or `type:"module"`.
 
 Full rules and one filled example per type:
 [`references/fragment-schema.md`](references/fragment-schema.md). Rendered
@@ -76,10 +79,16 @@ behavior per type: [`references/section-types.md`](references/section-types.md).
 
 The shell is titled **Release candidate report**.
 
-- **Title.** The displayed report title is `YYYY-MM-DD Release: N commits`,
-  where the date is the `release.created_at` date and `N` is `--commits`.
-  Without `--commits` it is just `YYYY-MM-DD Release`. The id, vcs-ref, label,
-  and SHA stay in the manifest but are not the rendered title.
+- **Title.** The displayed report title is
+  `YYYY-MM-DD · <release-id> · N commits`, where the date is the
+  `release.created_at` date, `<release-id>` is the release id (the version),
+  and `N` is `--commits`. Without `--commits` it is
+  `YYYY-MM-DD · <release-id>`. The vcs-ref, label, and SHA stay in the
+  manifest but are not the rendered title. A status badge follows the title,
+  read from the embedded `releases.json`: `✓ latest` (ok-green) when the
+  shown release is `releases.json[0]` (newest by `created_at`), otherwise
+  `⚠ superseded — latest is <newest-id>` (warn-amber) so a stale report file
+  is obvious. The badge text carries the state (not color alone).
 - **Two columns, always.** Every fragment renders as two fixed side-by-side
   columns: left **This release** (all `view:"release"`/untagged sections in
   order), right **Δ vs previous** (all `view:"delta"` sections in order). An
@@ -88,7 +97,10 @@ The shell is titled **Release candidate report**.
 - **Show/hide previous releases.** The sidebar button (labelled
   `Show/hide previous releases`) toggles the second pane that loads the same
   fragment `id` from a sibling release, with the metric Δ table and `◀ ▶`
-  release walk.
+  release walk. Loading a sibling release's fragment needs the report served
+  (`python3 -m http.server`); on a `file://` page that pane shows an inline
+  "needs the report served" message and the current release still renders
+  fully.
 - **Overview landing.** A `category:"overview"` fragment is pinned first in
   the left nav and is the default page on load (lexically-first `id` if
   several). It renders like any fragment.
@@ -101,6 +113,27 @@ The shell is titled **Release candidate report**.
   markdown via marked+DOMPurify, otherwise an escaped `<pre>`. "Open full
   file" is inert under `file://`.
 - **Retheming.** `--design` is unchanged (see [Apply design](#apply-design)).
+
+## Module filter
+
+A report MAY partition content by **module**, an opaque producer-defined id
+the framework never parses or resolves. Three optional, backward-compatible
+surfaces carry ids: a `body[]` section's `"module": "<id>"`, a `table`
+`type:"module"` column's cell values, and the manifest `modules` list
+(`dev-report-build --modules id1,id2,…`, written verbatim).
+
+The shell renders one global `Module:` dropdown next to the
+show/hide-previous-releases control. Options are `All` ∪ `manifest.modules`
+∪ every section `module` value ∪ every `type:"module"` cell value across all
+loaded fragments, ordered `All`, then `root` (if present), then the rest
+lexically. Selecting module *M* hides any section whose `module` is set and
+≠ *M*, and in any table with a `type:"module"` column hides rows whose module
+cell ≠ *M*; sections with no `module` and rows with an empty/absent module
+cell always stay visible. `All` filters nothing. The selection rides in the
+URL hash (so deep links and back/forward keep it) and composes with the
+two-column view, the per-section menu, the show/hide-previous split, and the
+table filter. **Inert when absent:** if no module ids exist anywhere the
+selector is not rendered, so reports that do not use modules look unchanged.
 
 ## Procedure
 
@@ -135,7 +168,7 @@ the identical check internally, so step 3 cannot produce a partial report.
 ```bash
 python3 "scripts/dev-report-build" \
   <release-id> <staging-dir> <reports-root> \
-  [--vcs-ref REF] [--label TEXT] [--commits N] [--no-embed]
+  [--vcs-ref REF] [--label TEXT] [--commits N] [--modules LIST] [--no-embed]
 ```
 
 The build validates again, lays fragments out by `category`, computes the
@@ -150,13 +183,16 @@ written (see [Exit codes](#exit-codes)).
 ### 4. Verify
 
 Open `reports/<release-id>/index.html` (double-click). Confirm: the title
-reads `YYYY-MM-DD Release[: N commits]`; an `overview` fragment (if any) is
+reads `YYYY-MM-DD · <release-id>[ · N commits]` followed by a
+`✓ latest`/`⚠ superseded` badge; an `overview` fragment (if any) is
 pinned first and shown on load; the left nav lists categories with status dots
 and a per-category roll-up; every fragment shows the two **This release** /
 **Δ vs previous** columns; a multi-fragment category shows the per-section top
 menu; at least one non-trivial body type (graph/table/heatmap) draws. If a
-second release exists, toggle **Show/hide previous releases** and confirm the
-right pane loads the previous release and the metric Δ table appears.
+second release exists, serve the report (`python3 -m http.server`), toggle
+**Show/hide previous releases**, and confirm the right pane loads the
+previous release and the metric Δ table appears; on a `file://` page that
+pane shows the "needs the report served" message instead.
 
 ## Apply design
 
@@ -190,17 +226,25 @@ and fonts are the framework's and are not themeable.
 
 ## Standalone viewing and the file:// caveat
 
-Default builds **embed** the manifest and every fragment into `index.html` as
-one `<script id="report-data" type="application/json">` data island. The
-loader reads `window.__REPORT_DATA__[path]` first and only falls back to
-`fetch`. This is why the folder opens by double-click with no server: a
-`file://` origin is opaque and `fetch('data/manifest.json')` is blocked by
-same-origin policy in Chromium and inconsistent in Safari — embedding
-sidesteps CORS entirely. `data/*.json` is still written (git-diffable,
-re-buildable).
+Every build embeds the post-upsert `releases.json` into `index.html`'s
+`<script id="report-data" type="application/json">` data island under the key
+`releases.json`. Default builds additionally embed the manifest and every
+fragment (keys `data/manifest.json` and `data/<category>/<id>.json`). The
+loader reads `window.__REPORT_DATA__[path]` first. On a `file://` page it
+never issues a network `fetch` (the opaque origin makes
+`fetch('data/manifest.json')` or `fetch('../releases.json')` a CORS failure
+in Chromium and inconsistent in Safari); it uses the embedded copy and
+degrades silently if one is absent — no thrown CORS error. When served
+(http/https) the `fetch` is the fallback. `data/*.json` and the standalone
+`reports/releases.json` are still written (git-diffable, re-buildable, served
+mode). Because each report embeds its own build-time `releases.json`
+snapshot, the title's latest/superseded badge reflects what was known at
+build time on `file://`; a served report re-reads the live
+`reports/releases.json`.
 
-`--no-embed` is for very large reports meant to be served. In that mode view
-with a static server:
+`--no-embed` is for very large reports meant to be served; it still embeds
+`releases.json` (it is tiny) but not the manifest or fragments. View with a
+static server:
 
 ```bash
 python3 -m http.server --directory reports/<release-id>
@@ -225,9 +269,10 @@ across releases — it is the cross-release diff key.
 
 ```
 reports/
-├── releases.json                 # newest-first; upserted by id
+├── releases.json                 # newest-first; upserted by id; also embedded
 └── <release-id>/
-    ├── index.html                # shell; data island filled unless --no-embed
+    ├── index.html                # shell; data island holds releases.json always,
+    │                             #   manifest+fragments too unless --no-embed
     ├── assets/{app.js,app.css}   # copied verbatim from the Skill
     └── data/
         ├── manifest.json         # nav tree + rollup + release identity
@@ -247,6 +292,13 @@ shell are identical bytes per release so the folder is dependency-free.
   still succeeds (provenance degrades, the report does not).
 - **Empty report on double-click** → the build used `--no-embed`; either
   rebuild without it or serve the folder with `python3 -m http.server`.
+- **Previous-release pane shows "needs the report served"** → expected on a
+  `file://` page; a sibling release's fragment cannot be read across the
+  opaque origin. Serve the report to compare releases. The current release
+  renders fully regardless.
+- **Title badge reads `⚠ superseded` after a newer release** → the file is a
+  stale build-time snapshot; rebuild this release, or serve the report (the
+  served loader reads the live `reports/releases.json`).
 - **Visualizations blank, no network** → CDN libraries could not load on first
   open; reopen with network, then it is cached.
 - **`reports-root` unwritable** → exit `2`, nothing moved into place (the

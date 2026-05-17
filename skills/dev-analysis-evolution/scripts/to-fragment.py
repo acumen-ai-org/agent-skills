@@ -24,7 +24,9 @@ import csv
 import datetime
 import io
 import json
+import os
 import pathlib
+import subprocess
 import sys
 
 SCHEMA_VERSION = "dev-report-fragment/v1"
@@ -54,6 +56,44 @@ def _read_csv(path):
     for row in reader:
         rows.append(row)
     return rows
+
+
+def _modules_script():
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        candidate = pathlib.Path(plugin_root) / "scripts" / "modules.py"
+        if candidate.is_file():
+            return candidate
+    return pathlib.Path(__file__).resolve().parents[3] / "scripts" / "modules.py"
+
+
+class ModuleResolver:
+    def __init__(self, repo):
+        self._script = _modules_script()
+        self._args = []
+        if repo:
+            config = pathlib.Path(repo) / "dev-process.json"
+            if config.is_file():
+                self._args = ["--config", str(config)]
+        self._cache = {}
+
+    def resolve(self, path):
+        norm = (path or "").replace("\\", "/").strip("/")
+        if not norm:
+            return "root"
+        if norm in self._cache:
+            return self._cache[norm]
+        result = subprocess.run(
+            [sys.executable, str(self._script), "id", norm, *self._args],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        module_id = result.stdout.strip() if result.returncode == 0 else "root"
+        if not module_id:
+            module_id = "root"
+        self._cache[norm] = module_id
+        return module_id
 
 
 def build_evolution(out_dir):
@@ -101,6 +141,8 @@ def build_evolution(out_dir):
         "extensions_touched": len(extension_totals),
     }
 
+    resolver = ModuleResolver(history.get("repo"))
+
     extension_tree = history.get("extension_tree", [])
     extension_tree_rows = []
     for ext_node in extension_tree:
@@ -110,6 +152,7 @@ def build_evolution(out_dir):
                 {
                     "name": file_node.get("file", ""),
                     "files_changed": int(file_node.get("files_changed", 0)),
+                    "module": resolver.resolve(file_node.get("path", "")),
                 }
                 for file_node in folder_node.get("files", [])
             ]
@@ -117,6 +160,7 @@ def build_evolution(out_dir):
                 {
                     "name": folder_node.get("folder", ""),
                     "files_changed": int(folder_node.get("files_changed", 0)),
+                    "module": resolver.resolve(folder_node.get("path", "")),
                     "children": file_rows,
                 }
             )
@@ -124,13 +168,14 @@ def build_evolution(out_dir):
             {
                 "name": ext_node.get("extension", ""),
                 "files_changed": int(ext_node.get("files_changed", 0)),
+                "module": "",
                 "children": folder_rows,
             }
         )
 
     if not extension_tree_rows:
         extension_tree_rows = [
-            {"name": extension, "files_changed": count}
+            {"name": extension, "files_changed": count, "module": ""}
             for extension, count in sorted(
                 extension_totals.items(), key=lambda kv: (-kv[1], kv[0])
             )
@@ -170,6 +215,7 @@ def build_evolution(out_dir):
             "columns": [
                 {"key": "name", "label": "Extension / folder / file", "type": "string", "sortable": True},
                 {"key": "files_changed", "label": "Files changed", "type": "number", "sortable": True},
+                {"key": "module", "label": "Module", "type": "module", "sortable": True},
             ],
             "rows": extension_tree_rows,
             "defaultSort": {"key": "files_changed", "dir": "desc"},
@@ -269,6 +315,7 @@ def build_author_activity(out_dir):
             classified = None
 
     pr_units = (classified or bundle).get("pr_units", [])
+    resolver = ModuleResolver(bundle.get("repo"))
 
     type_counts = {label: 0 for label, _ in PR_TYPE_KEYS}
     pattern_counts = {"New patterns": 0, "Existing patterns, components and modules": 0}
@@ -303,10 +350,14 @@ def build_author_activity(out_dir):
             for item in work_items
             if isinstance(item, dict) and item.get("id") is not None
         )
-        modules = unit.get("modules") or []
-        if not modules:
-            modules = ["(none)"]
-        for module in modules:
+        seen_modules = []
+        for path in unit.get("changed_paths", []):
+            module = resolver.resolve(path)
+            if module not in seen_modules:
+                seen_modules.append(module)
+        if not seen_modules:
+            seen_modules = [""]
+        for module in sorted(seen_modules):
             detail_rows.append(
                 {
                     "pr": unit.get("pr") if unit.get("pr") is not None else 0,
@@ -402,7 +453,7 @@ def build_author_activity(out_dir):
                 {"key": "pr", "label": "PR", "type": "number", "sortable": True},
                 {"key": "title", "label": "Title", "type": "string", "sortable": True},
                 {"key": "author", "label": "Author", "type": "string", "sortable": True},
-                {"key": "module", "label": "Module", "type": "string", "sortable": True},
+                {"key": "module", "label": "Module", "type": "module", "sortable": True},
                 {"key": "type", "label": "Type", "type": "string", "sortable": True},
                 {"key": "pattern_use", "label": "Pattern use", "type": "string", "sortable": True},
                 {"key": "work_items", "label": "Work items", "type": "string", "sortable": True},

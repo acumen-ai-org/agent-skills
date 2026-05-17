@@ -9,6 +9,7 @@ ships inside the Skill so the contract travels with the renderer.
 - [Top-level fields](#top-level-fields)
 - [metrics is a flat number map](#metrics-is-a-flat-number-map)
 - [Body section types](#body-section-types)
+- [Modules and the global filter](#modules-and-the-global-filter)
 - [One filled example per section type](#one-filled-example-per-section-type)
 - [Manifest and releases files](#manifest-and-releases-files)
 - [Out of scope](#out-of-scope)
@@ -57,7 +58,7 @@ one function per type.
 | `type`         | Required shape (beyond `type`/`title`) |
 | -------------- | -------------------------------------- |
 | `markdown`     | `md: string` (GitHub-flavored, sanitized before injection). |
-| `table`        | `columns:[{key,label,type:"string\|number\|file",sortable?}]`, `rows:[obj]`; optional `filterable`, `defaultSort:{key,dir}`. `columns` non-empty. A row MAY carry `children:[row,…]` (recursive, expandable). A `type:"file"` column's cell value is a path string resolved against the section's `files[]`. |
+| `table`        | `columns:[{key,label,type:"string\|number\|file\|module",sortable?}]`, `rows:[obj]`; optional `filterable`, `defaultSort:{key,dir}`. `columns` non-empty. A row MAY carry `children:[row,…]` (recursive, expandable). A `type:"file"` column's cell value is a path string resolved against the section's `files[]`. A `type:"module"` column's cell value is an opaque module-id string the global filter matches on. |
 | `key-value`    | `pairs:[{k,v}]`, non-empty. |
 | `metric-cards` | `cards:[{label,value,unit?,delta_metric?}]`, non-empty. `delta_metric` links a card to a `metrics` key for the split-screen ▲/▼. |
 | `d3-graph`     | `nodes:[{id,label?,group?}]` (non-empty), `links:[{source,target,value?}]`, `layout:"force\|dag\|chord"`. |
@@ -85,6 +86,18 @@ fragments are backward-compatible: every section lands left and still
 validates. This two-column structure is permanent and is distinct from the
 show/hide-previous-releases toggle.
 
+### `module` — module ownership tag (section-level)
+
+A section MAY carry `"module": "<id>"`, a non-empty string. The id is opaque:
+the framework never parses or resolves it (`root`, `core`,
+`modules/payments` are all just strings to the renderer; resolving them to
+paths is a producer concern). A tagged section is hidden whenever the global
+module filter is set to a different module; a section with no `module` is
+**never** filtered (module-agnostic content always shows). If present,
+`module` must be a non-empty string (any other value fails validation).
+Untagged sections are backward-compatible. See
+[Modules and the global filter](#modules-and-the-global-filter).
+
 ### `files[]` — producer-embedded file excerpts (section-level)
 
 A section MAY include
@@ -106,6 +119,35 @@ children get a `▸`/`▾` disclosure toggle, collapsed by default; children are
 indented one level. Filtering keeps a row if it or any descendant matches
 (ancestors shown). Sorting applies within each level. `children`, if present,
 must be an array; nested rows are validated recursively.
+
+## Modules and the global filter
+
+A report MAY partition its content by **module** — an opaque producer-defined
+id. Three surfaces carry module ids, all optional and all backward-compatible:
+
+- A `body[]` section MAY carry `"module": "<id>"` (non-empty string).
+- A `table` column MAY declare `"type": "module"`; each cell in that column
+  is a module-id string (empty/absent ⇒ the row is module-agnostic).
+- `manifest.json` MAY carry a top-level `"modules": ["<id>", …]`, written
+  verbatim by `dev-report-build --modules id1,id2,…` (comma-separated). A
+  producer never writes the manifest; the build does.
+
+Module ids are opaque strings. The framework neither parses nor resolves them
+— mapping `modules/payments` to a directory is a producer/resolver concern.
+
+The renderer offers one global `Module:` selector (next to the
+show/hide-previous-releases control). Its options are `All` ∪
+`manifest.modules` ∪ every section `module` value ∪ every `type:"module"`
+cell value across all loaded fragments, sorted `All` first, then `root` (if
+present), then the rest lexically. Selecting module *M* hides any section
+whose `module` is set and ≠ *M*, and in any table with a `type:"module"`
+column hides rows whose module cell ≠ *M*; sections with no `module` and rows
+with an empty/absent module cell always stay visible. `All` filters nothing.
+The selection is carried in the URL hash so deep links and back/forward keep
+it, and it composes with the two-column view, the per-section menu, the
+show/hide-previous split, and the table filter. When no module ids exist
+anywhere the selector is not rendered — reports that do not use modules look
+unchanged.
 
 ## One filled example per section type
 
@@ -201,6 +243,25 @@ A `table` with expandable nested `children`:
                { "name": "login fail", "ms": 80 } ] } ] }
 ```
 
+A section tagged to a module (hidden unless the filter is `All` or `core`):
+
+```json
+{ "type": "markdown", "module": "core", "title": "Core notes",
+  "md": "Auth and billing both live in the `core` module this release." }
+```
+
+A `table` with a `type:"module"` column (rows in `core` and `root`; the
+empty-module row is never filtered):
+
+```json
+{ "type": "table", "title": "Findings by module",
+  "columns": [ {"key":"mod","label":"Module","type":"module"},
+               {"key":"finding","label":"Finding","type":"string","sortable":true} ],
+  "rows": [ {"mod":"core","finding":"unused export"},
+            {"mod":"root","finding":"stale lockfile"},
+            {"mod":"","finding":"repo-wide TODO sweep"} ] }
+```
+
 A complete fragment with all required top-level fields and a body of these
 sections is the self-consistency check `validate_fragments.py` enforces.
 
@@ -216,6 +277,7 @@ sections is the self-consistency check `validate_fragments.py` enforces.
   "release": { "id": "2026.05.0", "vcs_ref": "v2026.05.0",
                "git_sha": "9f3c1a7", "created_at": "2026-05-17T09:30:00Z",
                "label": "May 2026 release", "commit_count": 96 },
+  "modules": ["root", "core", "modules/payments"],
   "rollup": { "ok": 12, "info": 3, "warn": 4, "error": 1 },
   "categories": [
     { "id": "dependencies", "label": "Dependencies", "fragments": [
@@ -239,9 +301,24 @@ sections is the self-consistency check `validate_fragments.py` enforces.
 }
 ```
 
+`modules` is the verbatim `--modules id1,id2,…` list (omitted when the flag
+is absent). It seeds the global module-filter option set; the build does not
+parse or validate the ids.
+
 `commit_count` is `null` when `dev-report-build` is run without `--commits`.
-The renderer formats the report title as `<created_at date> Release: N
-commits` (the `: N commits` clause is omitted when `commit_count` is null).
+The renderer formats the report title as
+`<created_at date> · <release id> · N commits` — the release id is the
+version (the `· N commits` clause is omitted when `commit_count` is null). A
+status badge follows the title, computed from the embedded `releases.json`:
+`✓ latest` when the shown release equals `releases[0].id` (newest by
+`created_at`), else `⚠ superseded — latest is <newest id>`.
+
+`dev-report-build` embeds the post-upsert `releases.json` into every
+`index.html`'s `<script id="report-data">` data island under the key
+`releases.json` (in both embed and `--no-embed` modes — it is tiny), in
+addition to the standalone `reports/releases.json`. The renderer reads the
+embedded copy first; a `file://` page never fetches, so the badge reflects
+the build-time snapshot, while a served report re-reads the live file.
 
 A fragment with `category:"overview"` is pinned **first** in the left nav and
 is the default page on initial load when one is present; if there are several,

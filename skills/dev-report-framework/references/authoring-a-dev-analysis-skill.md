@@ -136,8 +136,24 @@ The smallest conformant fragment a `to-fragment.py` can emit:
 This validates, renders four ways (two cards + prose), and diffs both metrics
 against the previous release.
 
+## Module attribution (optional)
+
+A repo's `dev-process.json` may define `modules` (folder patterns). The report
+shell shows a global `Module:` filter; opt in so it narrows your fragment:
+
+- Tag a whole section with `"module": "<id>"`, or give a `table` a column with
+  `"type": "module"` whose cells are module ids.
+- Never invent or parse ids. Resolve a repo-relative path with the shared
+  resolver: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/modules.py" id <path>
+  --config <repo>/dev-process.json`. No config / empty `modules` ⇒ it returns
+  `root` for everything (the dimension is inert and the selector hides itself).
+- Untagged sections and empty module cells are never filtered (module-agnostic
+  content always shows). Opting in is optional — a fragment that tags nothing
+  simply isn't module-filterable.
+
 ## Out of scope
 
 Anything about rendering, HTML, or D3 (the framework owns it). Writing the
 manifest or `releases.json` (`dev-report-build` derives them). Choosing a
-release id (a caller-supplied CLI arg, see the Skill's inputs).
+release id (a caller-supplied CLI arg, see the Skill's inputs). Resolving
+module ids yourself (always shell out to `scripts/modules.py`).
