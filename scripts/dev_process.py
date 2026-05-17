@@ -77,6 +77,7 @@ DEFAULT = {
         "provider": "none",
         "prefix": "releases/${releaseId}",
     },
+    "modules": [],
 }
 
 TYPE_NAMES = {

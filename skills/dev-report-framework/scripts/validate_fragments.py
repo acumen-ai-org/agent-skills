@@ -109,6 +109,8 @@ def _validate_section(section, index):
         return [f"{where}: missing 'type'"]
     if "view" in section and section["view"] not in SECTION_VIEWS:
         errors.append(f"{where}: 'view' must be 'release' or 'delta'")
+    if "module" in section and not _is_str(section["module"]):
+        errors.append(f"{where}: 'module' must be a non-empty string")
     errors.extend(_validate_files(section, where))
     if section_type not in SECTION_TYPES:
         return errors
@@ -127,8 +129,8 @@ def _validate_section(section, index):
             for ci, column in enumerate(columns):
                 if not _is_obj(column) or not _is_str(column.get("key")) or not _is_str(column.get("label")):
                     errors.append(f"{where} (table): columns[{ci}] needs 'key' and 'label'")
-                elif column.get("type") not in ("string", "number", "file"):
-                    errors.append(f"{where} (table): columns[{ci}].type must be 'string', 'number' or 'file'")
+                elif column.get("type") not in ("string", "number", "file", "module"):
+                    errors.append(f"{where} (table): columns[{ci}].type must be 'string', 'number', 'file' or 'module'")
         if not isinstance(rows, list):
             errors.append(f"{where} (table): 'rows' must be an array")
         else:

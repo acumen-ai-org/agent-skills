@@ -74,7 +74,8 @@
         "provider": { "enum": ["none", "aws", "azure"] },
         "prefix": { "type": "string" }
       }
-    }
+    },
+    "modules": { "type": "array", "items": { "type": "string" } }
   },
   "$defs": {
     "tool": {

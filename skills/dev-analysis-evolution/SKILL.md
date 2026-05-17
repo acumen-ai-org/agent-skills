@@ -48,13 +48,14 @@ Both `category: evolution`, written by `to-fragment.py`:
 
 - **`evolution`** — `metrics{}` per-release-pair series (churn, coupling
   count, extensions touched); `body[]` an expandable
-  extension→folder→file `table`, a per-release-pair churn `table`, a
+  extension→folder→file `table` whose folder and file rows carry a
+  `type:"module"` column, a per-release-pair churn `table`, a
   change-concentration `treemap`, and (optional) code-maat churn `table`.
 - **`author-activity`** — `metrics{ pr_total, authors, new_feature_prs,
   updated_feature_prs, bug_prs, technical_prs, configuration_prs, data_prs,
   new_pattern_prs, existing_pattern_prs }` (plus `vibe_coders` **only** when a
   repo definition was found); a per-author summary `table`, a per-PR detail
-  `table` with a filterable `module` column, and an author×PR-type `heatmap`.
+  `table` with a `type:"module"` column, and an author×PR-type `heatmap`.
 
 Full contract:
 [`references/fragment-schema.md` in dev-report-framework](../dev-report-framework/references/fragment-schema.md).
@@ -75,13 +76,33 @@ default:
 The framework's filter keeps a row when it or any descendant matches, so
 typing a folder or file name narrows the tree; sort applies within each level.
 
+**Module ids come from the shared resolver.** Both fragments tag rows with
+module ids produced by
+[`${CLAUDE_PLUGIN_ROOT}/scripts/modules.py`](../../scripts/modules.py) run
+against the consuming repo's `dev-process.json` `modules` patterns —
+`to-fragment.py` shells out to it, never reimplementing the rule. When the
+repo has no `dev-process.json` (or its `modules` is empty) the resolver
+returns `root` for every path: the dimension is inert and the global selector
+is effectively absent, which is the correct behavior — nothing special-cases
+it. The collectors pass the analyzed repo path through their JSON so
+`to-fragment.py` can locate that config.
+
+**Evolution — module-tagged tree rows.** The extension→folder→file `table`
+carries a `type:"module"` column the framework's global `Module:` selector
+filters on. Level-1 **extension** rows have an empty module cell, so they stay
+visible and expandable under any selection; level-2 **folder** rows and
+level-3 **file** rows carry the module id resolved from their path, so picking
+a module narrows the evolution tree to that module's folders and files. The
+case-insensitive table filter still narrows by typed folder/file name and
+composes with the module selector.
+
 **Author-activity — per-module filter.** The per-PR detail `table` carries a
-`module` column. A module is the top-level path segment of a changed file, or
-the git submodule path (from `.gitmodules`) when the file is under one — so
-`vendor/lib/deep/x.c` reports module `vendor/lib`. A PR that spans modules is
-emitted as **one detail row per module** (same PR/title/author repeated), so
-the framework's built-in case-insensitive table filter narrows the table to a
-single submodule / repository root by typing its name.
+`type:"module"` column. A PR that touches paths in more than one module is
+emitted as **one detail row per module** (same PR/title/author repeated), each
+row holding a single resolved module id; a PR that touches no path yields one
+module-agnostic row (empty module cell, never filtered). The global `Module:`
+selector hides rows whose module id differs from the selected module; the
+built-in table filter still narrows by typed text and composes with it.
 
 **Release vs delta view.** Release-over-release comparison sections carry
 `view:"delta"` (per-release-pair churn, code-maat churn) and land in the right
@@ -151,10 +172,11 @@ classification. A PR-unit is one squash commit on `main`; detection defaults
 to `azure-squash` (set `PR_UNIT_STRATEGY=merge|trailer|squash-generic` to
 override). Authors are canonicalized via `.mailmap`. Each PR-unit records
 author, PR number, title, body, work-item ids (Azure work-item type resolved
-via `az` when available), changed paths, the `modules[]` each PR touches
-(top-level path segment, or `.gitmodules` submodule path when nested under
-one), `--numstat`, and a static new-vs-existing pattern hint. It also locates
-a repo-defined "vibe coder"
+via `az` when available), changed paths, `--numstat`, and a static
+new-vs-existing pattern hint. Module ids are not derived here — `to-fragment.py`
+resolves them from the changed paths via the shared `scripts/modules.py`
+against the repo's `dev-process.json`. It also locates a repo-defined "vibe
+coder"
 definition via
 [`references/vibe-coder-definition-locations.md`](references/vibe-coder-definition-locations.md)
 and copies its text in when found. Exit `5` on a bad ref.

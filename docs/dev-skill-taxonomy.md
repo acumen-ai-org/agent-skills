@@ -66,6 +66,14 @@ Adding a category is a deliberate change: it touches the fragment-schema enum
 and the report framework's navigation. Do not let a `dev-analysis-` Skill
 invent a category to avoid the assignment rule.
 
+The **module dimension** is orthogonal to categories. A repo's
+`dev-process.json` `modules` (folder patterns) is resolved by the shared
+`scripts/modules.py`; producers may tag sections (`module`) or table columns
+(`type:"module"`) with the resolved ids, and the report shell offers one
+global `Module:` filter across every category. It is opt-in and inert when
+unused — a Skill that tags nothing is simply not module-filterable. Producers
+never resolve ids themselves; they shell out to `scripts/modules.py`.
+
 ## The assignment rule
 
 Apply this to every new tool. The category is the **question the tool helps

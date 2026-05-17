@@ -8,6 +8,7 @@ carries a given fact. The authoritative field rules are in
 ## Contents
 
 - [Two-column release/delta view](#two-column-releasedelta-view)
+- [Module filter](#module-filter)
 - [markdown](#markdown)
 - [table](#table)
 - [key-value](#key-value)
@@ -35,6 +36,32 @@ and is separate from the sidebar's show/hide-previous-releases toggle.
 ```json
 { "type": "metric-cards", "view": "delta", "title": "Since last release",
   "cards": [ { "label": "New cycles", "value": 1, "delta_metric": "cycle_count" } ] }
+```
+
+## Module filter
+
+A global `Module:` selector (next to show/hide-previous-releases) appears
+when any module ids exist — from a section's optional `"module": "<id>"`
+tag, a `table` `type:"module"` column cell, or the manifest `modules` list
+(`dev-report-build --modules id1,id2,…`). Picking module *M* hides sections
+tagged to a different module and, in tables with a `type:"module"` column,
+rows whose module cell is a different module; untagged sections and
+empty-module rows always show. `All` filters nothing. The choice rides in the
+URL hash and composes with the two-column view, per-section menu, split, and
+table filter. With no module ids anywhere the selector is not rendered.
+
+```json
+{ "type": "markdown", "module": "core", "title": "Core notes",
+  "md": "Auth and billing both live in the `core` module this release." }
+```
+
+```json
+{ "type": "table", "title": "Findings by module",
+  "columns": [ {"key":"mod","label":"Module","type":"module"},
+               {"key":"finding","label":"Finding","type":"string","sortable":true} ],
+  "rows": [ {"mod":"core","finding":"unused export"},
+            {"mod":"root","finding":"stale lockfile"},
+            {"mod":"","finding":"repo-wide TODO sweep"} ] }
 ```
 
 ## markdown
@@ -84,7 +111,10 @@ applies within each level.
 
 A column with `type:"file"` renders its cell as a clickable token when the
 value matches a `files[].path` on the same section (see
-[File preview](#file-preview)).
+[File preview](#file-preview)). A column with `type:"module"` carries an
+opaque module-id per cell; rows are hidden when the global module filter
+selects a different module (an empty/absent cell is never filtered, see
+[Module filter](#module-filter)).
 
 ## key-value
 

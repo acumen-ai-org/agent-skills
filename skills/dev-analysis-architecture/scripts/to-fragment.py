@@ -21,7 +21,10 @@ The graph becomes a d3-graph body; metrics carry node_count, edge_count,
 cycle_count, max_depth; any reported violation drives status (warn for
 cycles/soft rule findings, error for hard layering violations) and exit 4.
 The tool-free raw additionally carries an import-flow sankey, a C4 mermaid,
-and an ADR table + markdown index.
+a per-file listing table, and an ADR table + markdown index. The listing and
+ADR tables carry a type:"module" column whose ids come from the shared
+scripts/modules.py resolver (config from the raw's repo/config location); the
+whole-repo d3-graph, sankey, and C4 mermaid stay module-agnostic.
 
 Exit codes:
   0  fragment written; status ok or warn
@@ -31,13 +34,37 @@ Exit codes:
 """
 import datetime
 import json
+import os
 import pathlib
 import re
+import subprocess
 import sys
 
 SCHEMA_VERSION = "dev-report-fragment/v1"
 SKILL_NAME = "dev-analysis-architecture"
 GRAPH_NODE_RENDER_LIMIT = 300
+
+
+def plugin_root():
+    env = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if env:
+        return pathlib.Path(env)
+    return pathlib.Path(__file__).resolve().parents[3]
+
+
+def resolve_modules(paths, config):
+    resolver = plugin_root() / "scripts" / "modules.py"
+    ids = {}
+    if not resolver.is_file():
+        return {path: "root" for path in paths}
+    for path in paths:
+        command = [sys.executable, str(resolver), "id", path]
+        if config:
+            command += ["--config", config]
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+        module_id = completed.stdout.strip() if completed.returncode == 0 else ""
+        ids[path] = module_id or "root"
+    return ids
 
 
 def now_iso():
@@ -398,6 +425,13 @@ def parse_source_inventory(raw):
     adrs = raw.get("adrs") if isinstance(raw.get("adrs"), list) else []
     c4_mermaid = raw.get("c4_mermaid") if isinstance(raw.get("c4_mermaid"), str) else None
     stacks = raw.get("stacks") if isinstance(raw.get("stacks"), list) else []
+    config = raw.get("config") if isinstance(raw.get("config"), str) else None
+    if config is None:
+        repo = raw.get("repo")
+        if isinstance(repo, str):
+            candidate = pathlib.Path(repo) / "dev-process.json"
+            if candidate.is_file():
+                config = str(candidate)
     extra = {
         "node_meta": node_meta,
         "weights": weights,
@@ -405,6 +439,7 @@ def parse_source_inventory(raw):
         "adrs": adrs,
         "c4_mermaid": c4_mermaid,
         "stacks": stacks,
+        "config": config,
     }
     return node_ids, edges, [], "collect-structure", extra
 
@@ -623,7 +658,41 @@ def _source_sections(node_ids, edges, weights, node_meta, extra):
         }
     )
 
+    config = extra.get("config")
     adrs = extra.get("adrs") or []
+    adr_paths = [str(adr.get("path", "")) for adr in adrs if str(adr.get("path", ""))]
+    listing_paths = [nid for nid in node_ids if nid]
+    module_ids = resolve_modules(
+        sorted(set(adr_paths) | set(listing_paths)), config
+    )
+
+    if listing_paths:
+        sections.append(
+            {
+                "type": "table",
+                "title": "Source files by module",
+                "filterable": True,
+                "columns": [
+                    {"key": "file", "label": "File", "type": "string", "sortable": True},
+                    {"key": "package", "label": "Package", "type": "string", "sortable": True},
+                    {"key": "module", "label": "Module", "type": "module", "sortable": True},
+                ],
+                "rows": [
+                    {
+                        "file": nid,
+                        "package": (
+                            node_meta[nid]["group"]
+                            if node_meta and nid in node_meta
+                            else group_root(nid)
+                        ),
+                        "module": module_ids.get(nid, "root"),
+                    }
+                    for nid in listing_paths
+                ],
+                "defaultSort": {"key": "file", "dir": "asc"},
+            }
+        )
+
     if adrs:
         sections.append(
             {
@@ -634,12 +703,14 @@ def _source_sections(node_ids, edges, weights, node_meta, extra):
                     {"key": "title", "label": "Title", "type": "string", "sortable": True},
                     {"key": "status", "label": "Status", "type": "string", "sortable": True},
                     {"key": "path", "label": "Path", "type": "string", "sortable": True},
+                    {"key": "module", "label": "Module", "type": "module", "sortable": True},
                 ],
                 "rows": [
                     {
                         "title": str(adr.get("title", "")),
                         "status": str(adr.get("status", "")),
                         "path": str(adr.get("path", "")),
+                        "module": module_ids.get(str(adr.get("path", "")), "root"),
                     }
                     for adr in adrs
                 ],

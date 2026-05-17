@@ -4,12 +4,15 @@
 Usage:
   dev-report-build <release-id> <fragments-dir> <reports-root>
                    [--vcs-ref REF] [--label TEXT] [--no-embed]
-                   [--design FILE] [--commits N]
+                   [--design FILE] [--commits N] [--modules id1,id2,...]
 
 Builds reports/<release-id>/ atomically (temp dir -> move on success only),
-upserts reports/releases.json (newest-first by id), and embeds the manifest
-plus every fragment into index.html so the folder opens via file:// with no
-server. data/*.json is always written too.
+upserts reports/releases.json (newest-first by id), and embeds the manifest,
+every fragment, and the post-upsert releases.json into index.html so the
+folder opens via file:// with no server. data/*.json and the standalone
+reports/releases.json are always written too. The releases.json content is
+embedded under the data-island key "releases.json" in both embed and
+--no-embed modes.
 
 --design FILE reads FILE, extracts every CSS :root{...} block (fenced ```css
 or raw), and injects the concatenated rules as one <style id="design-override">
@@ -19,6 +22,11 @@ A file with no :root block is a non-fatal notice; the default theme is used.
 --commits N records commit_count in the manifest release object so the renderer
 formats the report title as "<created_at date> Release: N commits"; without it
 the commit clause is omitted.
+
+--modules id1,id2,... is a comma-separated list of opaque module ids written
+verbatim into the manifest as top-level "modules". The renderer unions them
+with module ids found in fragment sections to populate the global module
+filter; the ids are never parsed or resolved here.
 
 Exit codes:
   0  report folder written; releases.json updated
@@ -97,7 +105,7 @@ def capture_git_sha():
         return None
 
 
-def build_manifest(parsed, release):
+def build_manifest(parsed, release, modules):
     grouped = {}
     rollup = {"ok": 0, "info": 0, "warn": 0, "error": 0}
     for _, fragment in parsed:
@@ -127,12 +135,15 @@ def build_manifest(parsed, release):
             }
         )
 
-    return {
+    manifest = {
         "schema": "dev-report-manifest/v1",
         "release": release,
         "rollup": rollup,
         "categories": categories,
     }
+    if modules:
+        manifest["modules"] = modules
+    return manifest
 
 
 def write_json(path, payload):
@@ -143,7 +154,7 @@ def write_json(path, payload):
     )
 
 
-def upsert_releases(reports_root, release_entry):
+def compute_releases(reports_root, release_entry):
     releases_path = reports_root / "releases.json"
     releases = []
     if releases_path.exists():
@@ -158,7 +169,10 @@ def upsert_releases(reports_root, release_entry):
             releases = []
     releases.insert(0, release_entry)
     releases.sort(key=lambda entry: entry.get("created_at", ""), reverse=True)
+    return {"schema": "dev-report-releases/v1", "releases": releases}
 
+
+def write_releases(reports_root, releases_doc):
     handle = tempfile.NamedTemporaryFile(
         "w",
         encoding="utf-8",
@@ -168,14 +182,9 @@ def upsert_releases(reports_root, release_entry):
         delete=False,
     )
     with handle:
-        json.dump(
-            {"schema": "dev-report-releases/v1", "releases": releases},
-            handle,
-            indent=2,
-            ensure_ascii=False,
-        )
+        json.dump(releases_doc, handle, indent=2, ensure_ascii=False)
         handle.write("\n")
-    pathlib.Path(handle.name).replace(releases_path)
+    pathlib.Path(handle.name).replace(reports_root / "releases.json")
 
 
 def main():
@@ -188,6 +197,7 @@ def main():
     parser.add_argument("--no-embed", action="store_true")
     parser.add_argument("--design", default=None)
     parser.add_argument("--commits", type=int, default=None)
+    parser.add_argument("--modules", default=None)
     try:
         args = parser.parse_args()
     except SystemExit:
@@ -234,7 +244,10 @@ def main():
         "label": args.label or release_id,
         "commit_count": args.commits,
     }
-    manifest = build_manifest(parsed, release)
+    modules = []
+    if args.modules is not None:
+        modules = [item for item in args.modules.split(",") if item]
+    manifest = build_manifest(parsed, release, modules)
 
     design_override = None
     if args.design is not None:
@@ -251,6 +264,17 @@ def main():
                 "run references/design-to-theme.md to derive one — "
                 "using default theme\n"
             )
+
+    release_entry = {
+        "id": release_id,
+        "vcs_ref": args.vcs_ref,
+        "git_sha": git_sha,
+        "created_at": created_at,
+        "label": args.label or release_id,
+        "commit_count": args.commits,
+        "path": f"{release_id}/",
+    }
+    releases_doc = compute_releases(reports_root, release_entry)
 
     try:
         staging_root = pathlib.Path(
@@ -274,14 +298,16 @@ def main():
             write_json(staging / relative, fragment)
             embedded[relative] = fragment
 
-        index_html = (assets_dir / "index.html").read_text(encoding="utf-8")
+        island_payload = {"releases.json": releases_doc}
         if not args.no_embed:
-            island = (
-                '<script id="report-data" type="application/json">'
-                + json.dumps(embedded, ensure_ascii=False)
-                + "</script>"
-            )
-            index_html = index_html.replace(DATA_ISLAND_PLACEHOLDER, island)
+            island_payload.update(embedded)
+        index_html = (assets_dir / "index.html").read_text(encoding="utf-8")
+        island = (
+            '<script id="report-data" type="application/json">'
+            + json.dumps(island_payload, ensure_ascii=False)
+            + "</script>"
+        )
+        index_html = index_html.replace(DATA_ISLAND_PLACEHOLDER, island)
         if design_override is not None:
             index_html = index_html.replace(
                 "</head>", design_override + "</head>", 1
@@ -299,18 +325,7 @@ def main():
         shutil.rmtree(staging_root, ignore_errors=True)
 
     try:
-        upsert_releases(
-            reports_root,
-            {
-                "id": release_id,
-                "vcs_ref": args.vcs_ref,
-                "git_sha": git_sha,
-                "created_at": created_at,
-                "label": args.label or release_id,
-                "commit_count": args.commits,
-                "path": f"{release_id}/",
-            },
-        )
+        write_releases(reports_root, releases_doc)
     except OSError as error:
         return fail(2, f"report written but releases.json update failed: {error}")
 

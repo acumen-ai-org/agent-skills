@@ -12,11 +12,20 @@
   }
   window.__REPORT_DATA__ = embedded;
 
+  var isFileProtocol = window.location.protocol === "file:";
+
   var fetchCache = {};
 
+  function hasEmbedded(path) {
+    return Object.prototype.hasOwnProperty.call(window.__REPORT_DATA__, path);
+  }
+
   function getData(path) {
-    if (Object.prototype.hasOwnProperty.call(window.__REPORT_DATA__, path)) {
+    if (hasEmbedded(path)) {
       return Promise.resolve(window.__REPORT_DATA__[path]);
+    }
+    if (isFileProtocol) {
+      return Promise.reject(new Error("file:// cannot read " + path));
     }
     if (fetchCache[path]) {
       return fetchCache[path];
@@ -28,6 +37,14 @@
       return response.json();
     });
     return fetchCache[path];
+  }
+
+  function embeddedReleases() {
+    var doc = window.__REPORT_DATA__["releases.json"];
+    if (doc && doc.releases) {
+      return doc.releases;
+    }
+    return [];
   }
 
   function el(tag, attrs, children) {
@@ -66,8 +83,90 @@
     currentPath: null,
     currentCategory: null,
     currentId: null,
-    previousIndex: 0
+    previousIndex: 0,
+    moduleOptions: ["All"],
+    currentModule: "All"
   };
+
+  function moduleColumns(columns) {
+    return (columns || []).filter(function (column) {
+      return column.type === "module";
+    });
+  }
+
+  function rowModuleHidden(row, columns) {
+    if (state.currentModule === "All") {
+      return false;
+    }
+    return moduleColumns(columns).some(function (column) {
+      var value = row[column.key];
+      if (value == null || String(value) === "") {
+        return false;
+      }
+      return String(value) !== state.currentModule;
+    });
+  }
+
+  function sectionModuleHidden(section) {
+    if (state.currentModule === "All") {
+      return false;
+    }
+    if (!section || section.module == null || section.module === "") {
+      return false;
+    }
+    return String(section.module) !== state.currentModule;
+  }
+
+  function collectModuleValues(fragment, sink) {
+    (fragment && fragment.body ? fragment.body : []).forEach(function (section) {
+      if (section && section.module != null && section.module !== "") {
+        sink[String(section.module)] = true;
+      }
+      if (section && section.type === "table") {
+        var columns = moduleColumns(section.columns);
+        if (columns.length) {
+          (function walk(rows) {
+            (rows || []).forEach(function (row) {
+              columns.forEach(function (column) {
+                var value = row[column.key];
+                if (value != null && String(value) !== "") {
+                  sink[String(value)] = true;
+                }
+              });
+              walk(row.children);
+            });
+          })(section.rows);
+        }
+      }
+    });
+  }
+
+  function fragmentPaths() {
+    var paths = [];
+    (state.manifest.categories || []).forEach(function (category) {
+      (category.fragments || []).forEach(function (fragment) {
+        if (fragment.path) {
+          paths.push(fragment.path);
+        }
+      });
+    });
+    return paths;
+  }
+
+  function sortModuleOptions(values) {
+    var rest = values
+      .filter(function (value) {
+        return value !== "root";
+      })
+      .sort(function (a, b) {
+        return a.localeCompare(b);
+      });
+    var ordered = ["All"];
+    if (values.indexOf("root") !== -1) {
+      ordered.push("root");
+    }
+    return ordered.concat(rest);
+  }
 
   function renderMarkdown(section) {
     var wrap = el("div", { class: "md-body" });
@@ -157,6 +256,9 @@
 
     function appendRows(tbody, list, depth) {
       list.forEach(function (row) {
+        if (rowModuleHidden(row, columns)) {
+          return;
+        }
         if (filterText && !subtreeMatches(row, columns, filterText)) {
           return;
         }
@@ -946,6 +1048,9 @@
     var releaseCount = 0;
     var deltaCount = 0;
     (fragment.body || []).forEach(function (section) {
+      if (sectionModuleHidden(section)) {
+        return;
+      }
       if (section.view === "delta") {
         deltaCol.appendChild(sectionBlock(section));
         deltaCount += 1;
@@ -1033,7 +1138,7 @@
       ]);
       var group = el("div", { class: "category" }, [head]);
       category.fragments.forEach(function (fragment) {
-        var hash = "#" + category.id + "/" + fragment.id;
+        var hash = "#" + category.id + "/" + fragment.id + moduleSuffix();
         var link = el("a", { href: hash, title: fragment.summary || "" }, [
           el("span", { class: "dot " + fragment.status }),
           fragment.title
@@ -1049,11 +1154,32 @@
 
   function formatReleaseTitle(release) {
     var date = String(release.created_at || "").slice(0, 10) || "Release";
-    var title = date + " Release";
-    if (release.commit_count != null) {
-      title += ": " + release.commit_count + " commits";
+    var parts = [date];
+    if (release.id) {
+      parts.push(String(release.id));
     }
-    return title;
+    if (release.commit_count != null) {
+      parts.push(release.commit_count + " commits");
+    }
+    return parts.join(" · ");
+  }
+
+  function releaseStatusBadge(release) {
+    var releases = embeddedReleases();
+    if (!releases.length || release.id == null) {
+      return null;
+    }
+    var newest = releases[0];
+    if (newest && newest.id === release.id) {
+      return el("span", {
+        class: "release-badge latest",
+        text: "✓ latest"
+      });
+    }
+    return el("span", {
+      class: "release-badge superseded",
+      text: "⚠ superseded — latest is " + (newest ? newest.id : "?")
+    });
   }
 
   function buildReleaseHeader() {
@@ -1061,7 +1187,14 @@
     clear(header);
     var release = state.manifest.release || {};
     var rollup = state.manifest.rollup || {};
-    header.appendChild(el("div", null, [formatReleaseTitle(release)]));
+    var titleRow = el("div", { class: "release-title" }, [
+      el("span", { text: formatReleaseTitle(release) })
+    ]);
+    var badge = releaseStatusBadge(release);
+    if (badge) {
+      titleRow.appendChild(badge);
+    }
+    header.appendChild(titleRow);
     var pills = el("div", { class: "rollup" });
     ["ok", "info", "warn", "error"].forEach(function (status) {
       pills.appendChild(
@@ -1088,7 +1221,7 @@
         var tab = el("a", {
           class:
             "section-tab" + (entry.id === state.currentId ? " active" : ""),
-          href: "#" + state.currentCategory + "/" + entry.id
+          href: "#" + state.currentCategory + "/" + entry.id + moduleSuffix()
         }, [
           el("span", { class: "dot " + entry.status }),
           entry.title
@@ -1148,6 +1281,18 @@
       body.appendChild(el("div", { class: "empty-state", text: "no comparable release" }));
       return;
     }
+    if (isFileProtocol && !hasEmbedded(path)) {
+      body.appendChild(
+        el("div", {
+          class: "placeholder",
+          text:
+            "Previous-release comparison needs the report served " +
+            "(e.g. `python3 -m http.server`) — it can't read sibling " +
+            "releases from a file:// page. The current release renders fully."
+        })
+      );
+      return;
+    }
     getData(path)
       .then(function (fragment) {
         var deltas = computeDeltas(currentFragment, fragment);
@@ -1202,9 +1347,54 @@
       });
   }
 
+  function parseHash() {
+    var raw = window.location.hash.replace(/^#/, "");
+    var route = raw;
+    var module = null;
+    var queryAt = raw.indexOf("?");
+    if (queryAt !== -1) {
+      route = raw.slice(0, queryAt);
+      raw
+        .slice(queryAt + 1)
+        .split("&")
+        .forEach(function (pair) {
+          var eq = pair.indexOf("=");
+          if (eq !== -1 && pair.slice(0, eq) === "module") {
+            module = decodeURIComponent(pair.slice(eq + 1));
+          }
+        });
+    }
+    return { route: route, module: module };
+  }
+
+  function moduleSuffix() {
+    if (state.currentModule && state.currentModule !== "All") {
+      return "?module=" + encodeURIComponent(state.currentModule);
+    }
+    return "";
+  }
+
+  function routeHash() {
+    if (!state.currentCategory || !state.currentId) {
+      return "";
+    }
+    return (
+      "#" + state.currentCategory + "/" + state.currentId + moduleSuffix()
+    );
+  }
+
   function applyHash() {
-    var hash = window.location.hash.replace(/^#/, "");
-    var parts = hash.split("/");
+    var parsed = parseHash();
+    if (parsed.module && state.moduleOptions.indexOf(parsed.module) !== -1) {
+      state.currentModule = parsed.module;
+    } else {
+      state.currentModule = "All";
+    }
+    var moduleSelect = document.getElementById("module-select");
+    if (moduleSelect) {
+      moduleSelect.value = state.currentModule;
+    }
+    var parts = parsed.route.split("/");
     if (parts.length === 2 && parts[0] && parts[1]) {
       state.currentCategory = parts[0];
       state.currentId = parts[1];
@@ -1225,6 +1415,7 @@
         }
       }
     }
+    buildNav();
     highlightActive();
     loadCurrent();
   }
@@ -1260,15 +1451,78 @@
     loadCurrent();
   }
 
+  function buildModuleFilter() {
+    var wrap = document.getElementById("module-filter");
+    var select = document.getElementById("module-select");
+    if (state.moduleOptions.length <= 1) {
+      wrap.classList.add("hidden");
+      return;
+    }
+    clear(select);
+    state.moduleOptions.forEach(function (value) {
+      select.appendChild(el("option", { value: value, text: value }));
+    });
+    select.value =
+      state.moduleOptions.indexOf(state.currentModule) !== -1
+        ? state.currentModule
+        : "All";
+    select.addEventListener("change", function () {
+      state.currentModule = select.value;
+      var next = routeHash();
+      if (next && next !== window.location.hash) {
+        window.location.hash = next;
+      } else {
+        loadCurrent();
+      }
+    });
+    wrap.classList.remove("hidden");
+  }
+
+  function computeModuleOptions() {
+    var sink = {};
+    (state.manifest.modules || []).forEach(function (value) {
+      if (value != null && value !== "") {
+        sink[String(value)] = true;
+      }
+    });
+    return Promise.all(
+      fragmentPaths().map(function (path) {
+        return getData(path)
+          .then(function (fragment) {
+            collectModuleValues(fragment, sink);
+          })
+          .catch(function () {});
+      })
+    ).then(function () {
+      state.moduleOptions = sortModuleOptions(Object.keys(sink));
+    });
+  }
+
   function loadReleases() {
     var manifestRelease = (state.manifest.release || {}).id;
-    return getData("../releases.json")
-      .then(function (data) {
-        var all = (data && data.releases) || [];
-        state.releases = all.filter(function (entry) {
-          return entry.id !== manifestRelease;
-        });
+    function adopt(data) {
+      var all = (data && data.releases) || [];
+      state.releases = all.filter(function (entry) {
+        return entry.id !== manifestRelease;
+      });
+    }
+    var embeddedDoc = window.__REPORT_DATA__["releases.json"];
+    if (embeddedDoc) {
+      adopt(embeddedDoc);
+      return Promise.resolve();
+    }
+    if (isFileProtocol) {
+      state.releases = [];
+      return Promise.resolve();
+    }
+    return fetch("../releases.json")
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status);
+        }
+        return response.json();
       })
+      .then(adopt)
       .catch(function () {
         state.releases = [];
       });
@@ -1279,7 +1533,10 @@
       .then(function (manifest) {
         state.manifest = manifest;
         buildReleaseHeader();
-        buildNav();
+        return computeModuleOptions();
+      })
+      .then(function () {
+        buildModuleFilter();
         return loadReleases();
       })
       .then(function () {

@@ -14,6 +14,7 @@ on `body[].type`, so a new `dev-analysis-` Skill needs zero framework changes.
 
 - [Report-fragment contract](#report-fragment-contract)
 - [Body section types](#body-section-types)
+- [Module filter](#module-filter)
 - [Filled example](#filled-example)
 - [Folder layout](#folder-layout)
 - [Release identity](#release-identity)
@@ -62,7 +63,7 @@ type. Ten types in v1:
 | `type`         | Shape (beyond `type`/`title`) | Renders as |
 | -------------- | ----------------------------- | ---------- |
 | `markdown`     | `md: string` (GitHub-flavored) | Sanitized HTML. |
-| `table`        | `columns:[{key,label,type:"string\|number\|file",sortable?}], rows:[obj], filterable?, defaultSort?:{key,dir}`; a row MAY carry `children:[row,…]` | Sortable/filterable table; rows with `children` are expandable; `type:"file"` cells are clickable file tokens. |
+| `table`        | `columns:[{key,label,type:"string\|number\|file\|module",sortable?}], rows:[obj], filterable?, defaultSort?:{key,dir}`; a row MAY carry `children:[row,…]` | Sortable/filterable table; rows with `children` are expandable; `type:"file"` cells are clickable file tokens; `type:"module"` cells drive the global module filter. |
 | `key-value`    | `pairs:[{k,v}]` | Definition list. |
 | `metric-cards` | `cards:[{label,value,unit?,delta_metric?}]` | Big-number tiles. `delta_metric` links a card to a `metrics` key so split-screen shows ▲/▼. |
 | `d3-graph`     | `nodes:[{id,label,group?}], links:[{source,target,value?}], layout:"force\|dag\|chord"` | Force, layered DAG, or chord. `chord` is a layout value, not a body type. |
@@ -77,11 +78,42 @@ An unrecognized `type` renders a visible "unsupported section type `X`
 forward-compatible by design.
 
 `view` (`"release"|"delta"`, absent ⇒ `"release"`) decides which of the two
-permanent columns a section lands in; an invalid value fails validation.
-`files:[{path,lang,excerpt,startLine?}]` carries producer-embedded source
-excerpts; a path string matching a `files[].path` on the same section becomes
-a clickable token opening a preview modal (markdown via marked+DOMPurify,
-otherwise an escaped `<pre>`). The build never reads files.
+permanent columns a section lands in; an invalid value fails validation. A
+section MAY also carry `"module": "<id>"` (non-empty string), an opaque
+module tag driving the global module filter (see
+[Module filter](#module-filter)). `files:[{path,lang,excerpt,startLine?}]`
+carries producer-embedded source excerpts; a path string matching a
+`files[].path` on the same section becomes a clickable token opening a
+preview modal (markdown via marked+DOMPurify, otherwise an escaped `<pre>`).
+The build never reads files.
+
+## Module filter
+
+A report MAY partition content by **module** — an opaque producer-defined id.
+The framework never parses or resolves it (`root`, `core`,
+`modules/payments` are strings; resolving them is a producer concern). Three
+optional, backward-compatible surfaces carry ids:
+
+- a `body[]` section's `"module": "<id>"` (non-empty string; an invalid type
+  fails validation);
+- a `table` column with `"type": "module"`, each cell an opaque module-id
+  string (empty/absent ⇒ the row is module-agnostic);
+- a top-level manifest `"modules": ["<id>", …]`, written verbatim by
+  `dev-report-build --modules id1,id2,…` (the build never parses the ids).
+
+The shell renders one global `Module:` dropdown beside the
+show/hide-previous-releases control. Its options are `All` ∪
+`manifest.modules` ∪ every section `module` value ∪ every `type:"module"`
+cell value across all loaded fragments, ordered `All` first, then `root` (if
+present), then the rest lexically. Selecting module *M* hides any section
+whose `module` is set and ≠ *M* and, in tables with a `type:"module"`
+column, rows whose module cell ≠ *M*; sections with no `module` and
+empty-module rows always stay visible; `All` filters nothing. The selection
+is persisted in the URL hash so deep links and back/forward keep it, and it
+composes with the two-column view, the per-section menu, the
+show/hide-previous split, and the table filter. When no module ids exist
+anywhere the selector is not rendered, so reports that do not use modules are
+visually unchanged.
 
 ## Filled example
 
@@ -152,6 +184,7 @@ when it is also inlined into `index.html` (see below).
   "release": { "id": "2026.05.0", "vcs_ref": "v2026.05.0",
                "git_sha": "9f3c1a7", "created_at": "2026-05-17T09:30:00Z",
                "label": "May 2026 release", "commit_count": 96 },
+  "modules": ["root", "core", "modules/payments"],
   "rollup": { "ok": 12, "info": 3, "warn": 4, "error": 1 },
   "categories": [
     { "id": "dependencies", "label": "Dependencies", "fragments": [
@@ -162,6 +195,10 @@ when it is also inlined into `index.html` (see below).
   ]
 }
 ```
+
+`modules` is the verbatim `--modules id1,id2,…` list, present only when the
+flag was passed; it seeds the global module-filter options and is never
+parsed by the build.
 
 The shell reads `manifest.json` first, renders the nav, then loads each
 fragment on demand. Categories with no fragments are omitted from the nav.
@@ -183,7 +220,9 @@ fragment on demand. Categories with no fragments are omitted from the nav.
 ```
 
 `dev-report-build` reads, upserts by `id`, and rewrites this file atomically on
-every build.
+every build, and embeds the resulting (post-upsert, newest-first) content into
+every `index.html` data island under the key `releases.json` — in both embed
+and `--no-embed` modes, since it is tiny.
 
 ## Release identity
 
@@ -206,24 +245,40 @@ opaque, so same-origin policy blocks reading sibling files. A naive
 fetch-based loader shows an empty report on double-click. This is the single
 biggest implementation risk and the reason for the mitigation below.
 
-`dev-report-build` inlines the manifest and every fragment into `index.html`
-as one `<script id="report-data" type="application/json">…</script>` data
-island (the default). The loader's accessor is:
+`dev-report-build` inlines the post-upsert `releases.json`, the manifest, and
+every fragment into `index.html` as one
+`<script id="report-data" type="application/json">…</script>` data island.
+The island keys are `releases.json`, `data/manifest.json`, and
+`data/<category>/<id>.json`. The loader's accessor is:
 
 ```
 getData(path):
   if window.__REPORT_DATA__[path] exists → return it      (embedded; file:// safe)
+  else if location.protocol === "file:" → reject          (no CORS fetch attempt)
   else → fetch(path)                                       (served mode)
 ```
 
-Default builds embed everything, so the folder works by double-click with zero
-server and zero CORS. `data/*.json` is still written for git-diffability and
-re-builds. `--no-embed` skips inlining for very large reports meant to be
-served; in that mode the folder is viewed with a static server, e.g.:
+`releases.json` is embedded under its own key in both embed and `--no-embed`
+modes (it is tiny); the standalone `reports/releases.json` is also written for
+git-diffability, served-mode use, and re-builds. The release-list loader reads
+the embedded `releases.json` first and on a `file://` page never issues the
+parent-relative `fetch('../releases.json')` (the opaque origin makes it a CORS
+failure); served reports fetch the live file as the fallback. Default builds
+also embed the manifest and every fragment so the folder works by double-click
+with zero server and zero CORS; `data/*.json` is still written. `--no-embed`
+skips inlining the manifest and fragments for very large reports meant to be
+served (but still embeds `releases.json`); in that mode the folder is viewed
+with a static server, e.g.:
 
 ```
 python3 -m http.server --directory reports/2026.05.0
 ```
+
+The previous-release split-screen loads sibling releases'
+`../<prev>/data/<category>/<id>.json` — inherently a cross-origin read on
+`file://`. There the pane shows an inline "needs the report served" message;
+the current release still renders fully. Served reports load the sibling
+fragments normally.
 
 Data islands (`<script type="application/json">`) are universally supported
 and sidestep CORS entirely — the boring, proven choice. The trade-off is
@@ -248,10 +303,15 @@ option, not part of v1.
 ## Layout, navigation, and split-screen model
 
 - **Shell title** is "Release candidate report". The rendered report title is
-  `YYYY-MM-DD Release: N commits` — the date is the `release.created_at` date,
-  `N` is `commit_count` (from `--commits`). Without a commit count the
-  `: N commits` clause is dropped. Id, vcs-ref, label, and SHA remain in the
-  manifest but are not the displayed title.
+  `YYYY-MM-DD · <release-id> · N commits` — the date is the
+  `release.created_at` date, `<release-id>` is the release id (the version),
+  and `N` is `commit_count` (from `--commits`). Without a commit count the
+  `· N commits` clause is dropped. vcs-ref, label, and SHA remain in the
+  manifest but are not the displayed title. A status badge follows the title,
+  computed from the embedded `releases.json`: `✓ latest` (ok-green) when the
+  shown release id equals `releases[0].id` (newest by `created_at`), otherwise
+  `⚠ superseded — latest is <newest-id>` (warn-amber). The badge text states
+  the state so it is not color-only, making a stale report file obvious.
 - **Permanent two columns.** Every fragment renders as two fixed side-by-side
   columns: a left **This release** column (all `view:"release"`/untagged
   sections, in `body[]` order) and a right **Δ vs previous** column (all
@@ -274,7 +334,10 @@ option, not part of v1.
   keys when the report has focus) that walk `releases.json`; entries after the
   current one are older. The pane loads
   `../<prev-release>/data/<category>/<fragment-id>.json` — a sibling-folder
-  relative path that works because all releases sit under `reports/`.
+  relative path that works when the report is served. On a `file://` page the
+  pane shows an inline "Previous-release comparison needs the report served
+  (e.g. `python3 -m http.server`)" message instead of a CORS error; the
+  current release renders fully regardless.
 - If a fragment `id` is absent in the previous release, the pane shows a
   "not present in `<release>`" placeholder (a newly added analyzer is handled
   gracefully).
@@ -294,7 +357,7 @@ renderer is a `switch(section.type)` dispatch table.
 ## dev-report-build
 
 ```
-dev-report-build <release-id> <fragments-dir> <reports-root> [--vcs-ref REF] [--label TEXT] [--commits N] [--no-embed] [--design FILE]
+dev-report-build <release-id> <fragments-dir> <reports-root> [--vcs-ref REF] [--label TEXT] [--commits N] [--modules id1,id2,...] [--no-embed] [--design FILE]
 ```
 
 | Arg              | Meaning |
@@ -304,17 +367,19 @@ dev-report-build <release-id> <fragments-dir> <reports-root> [--vcs-ref REF] [--
 | `<reports-root>` | The `reports/` dir to write into and update. |
 | `--vcs-ref`      | Optional tag/branch recorded in the manifests. |
 | `--label`        | Optional human label; defaults to `<release-id>`. Recorded, but not the rendered title. |
-| `--commits N`    | Optional integer commit count recorded as `commit_count` in the manifest and `releases.json`; the renderer formats the title `YYYY-MM-DD Release: N commits`. Omitted ⇒ `commit_count: null` and the `: N commits` clause is dropped. |
-| `--no-embed`     | Skip inlining data into `index.html` (served mode, large reports). |
+| `--commits N`    | Optional integer commit count recorded as `commit_count` in the manifest and `releases.json`; the renderer formats the title `YYYY-MM-DD · <release-id> · N commits`. Omitted ⇒ `commit_count: null` and the `· N commits` clause is dropped. |
+| `--modules LIST` | Optional comma-separated opaque module ids written verbatim into the manifest as top-level `modules`; seeds the global module filter. Ids are never parsed or resolved. Omitted ⇒ no `modules` key. |
+| `--no-embed`     | Skip inlining the manifest and fragments into `index.html` (served mode, large reports). `releases.json` is still embedded under its own data-island key. |
 | `--design FILE`  | Optional retheme. Extracts every CSS `:root{…}` block from `FILE` (fenced ` ```css ` or raw), concatenates them, and injects one `<style id="design-override">` immediately before `</head>` and after the app.css `<link>`, so the cascade overrides the theme variables. Works with and without `--no-embed`. A file with no `:root` block prints a non-fatal stderr notice and the default theme is used; it adds no exit code. |
 
 Behavior: validate every fragment (same logic as `validate_fragments.py`);
 build into a temp dir and move into place only on success (atomic); auto-capture
 short SHA (best-effort — warn, do not fail, if not a git repo) and UTC
 timestamp; lay fragments out by `category`; compute `rollup`; write
-`manifest.json`; copy `assets/*`; inline data unless `--no-embed`; inject the
-design override when `--design` resolves a `:root` block; upsert the release
-into `releases.json` and rewrite atomically. Python 3, standard library only.
+`manifest.json`; copy `assets/*`; embed `releases.json` into the data island
+always and the manifest plus fragments unless `--no-embed`; inject the design
+override when `--design` resolves a `:root` block; upsert the release into
+`releases.json` and rewrite atomically. Python 3, standard library only.
 No LLM: `--design` only greps `:root{…}` blocks. Deriving a theme from a prose
 `DESIGN.md` is the Skill's `references/design-to-theme.md` role; only these
 `:root` vars are overridable (defined in `assets/app.css`): `--bg`, `--panel`,
