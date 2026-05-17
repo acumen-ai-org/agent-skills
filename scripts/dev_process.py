@@ -13,7 +13,6 @@ SCHEMA_PATH = (
 )
 
 DEFAULT = {
-    "$schema": "./dev-process.schema.json",
     "version": 1,
     "branches": {
         "main": "main",
@@ -64,6 +63,7 @@ DEFAULT = {
         "mediaExtensions": [".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".mov", ".pdf", ".zip"],
         "persistPath": "release-reports",
         "aggregate": {"kind": "command", "run": None},
+        "designDoc": None,
     },
     "releaseNotes": {
         "path": "RELEASE_NOTES.md",
@@ -186,7 +186,7 @@ def git_short_sha(repo):
 
 
 def release_id(repo):
-    override = os.environ.get("DRP_RELEASE_ID")
+    override = os.environ.get("DEV_RELEASE_ID")
     if override:
         return override
     day = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
@@ -261,12 +261,6 @@ def do_check(config_path):
 
 def do_init(config_path, repo):
     cfg_file = pathlib.Path(config_path)
-    schema_file = cfg_file.parent / "dev-process.schema.json"
-    try:
-        schema_file.write_text(json.dumps(get_schema(), indent=2) + "\n")
-    except OSError as exc:
-        sys.stderr.write(f"cannot write {schema_file}: {exc}\n")
-        return 4
     if not cfg_file.exists():
         try:
             cfg_file.write_text(json.dumps(DEFAULT, indent=2) + "\n")
@@ -274,7 +268,7 @@ def do_init(config_path, repo):
             sys.stderr.write(f"cannot write {cfg_file}: {exc}\n")
             return 4
         sys.stderr.write(
-            f"wrote default {cfg_file} and {schema_file}; "
+            f"wrote default {cfg_file}; "
             "edit analysis/review/blob before a real release; review and commit it\n"
         )
         return 0
@@ -317,8 +311,8 @@ def main():
         sys.stderr.write("usage: dev_process.py <init|check|emit|schema|value>\n")
         return 1
     mode = sys.argv[1]
-    config_path = os.environ.get("DRP_CONFIG", "./dev-process.json")
-    repo = os.environ.get("DRP_REPO", ".")
+    config_path = os.environ.get("DEV_RELEASE_CONFIG", "./dev-process.json")
+    repo = os.environ.get("DEV_RELEASE_REPO", ".")
     if mode == "schema":
         return do_schema()
     if mode == "init":

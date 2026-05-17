@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-repo=${DRP_REPO:-.}
-export DRP_REPO="$repo"
-export DRP_CONFIG=${DRP_CONFIG:-$repo/dev-process.json}
+repo=${DEV_RELEASE_REPO:-.}
+export DEV_RELEASE_REPO="$repo"
+export DEV_RELEASE_CONFIG=${DEV_RELEASE_CONFIG:-$repo/dev-process.json}
 cfg=$(python3 "$here/dev_process.py" emit) || { echo "dev-process: config invalid" >&2; exit 2; }
 get() { printf '%s' "$cfg" | python3 -c 'import json,sys
 d=json.load(sys.stdin)
@@ -64,21 +64,21 @@ if [ "$up_n" -gt 0 ]; then
     none)
       echo "blob.provider=none; discarding $up_n report file(s) (not kept, not uploaded)" >&2 ;;
     aws)
-      : "${DRP_S3_BUCKET:?aws provider requires DRP_S3_BUCKET}"
+      : "${DEV_RELEASE_S3_BUCKET:?aws provider requires DEV_RELEASE_S3_BUCKET}"
       command -v aws >/dev/null || { echo "aws CLI not installed" >&2; exit 2; }
-      aws s3 cp "$up_dir" "s3://$DRP_S3_BUCKET/$prefix/" --recursive || { echo "S3 upload failed" >&2; exit 4; }
-      echo "uploaded $up_n file(s) to s3://$DRP_S3_BUCKET/$prefix/" ;;
+      aws s3 cp "$up_dir" "s3://$DEV_RELEASE_S3_BUCKET/$prefix/" --recursive || { echo "S3 upload failed" >&2; exit 4; }
+      echo "uploaded $up_n file(s) to s3://$DEV_RELEASE_S3_BUCKET/$prefix/" ;;
     azure)
-      : "${DRP_AZURE_CONTAINER:?azure provider requires DRP_AZURE_CONTAINER}"
+      : "${DEV_RELEASE_AZURE_CONTAINER:?azure provider requires DEV_RELEASE_AZURE_CONTAINER}"
       if [ -z "${AZURE_STORAGE_CONNECTION_STRING:-}" ] && \
          { [ -z "${AZURE_STORAGE_ACCOUNT:-}" ] || [ -z "${AZURE_STORAGE_KEY:-}" ]; }; then
         echo "azure provider requires AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY" >&2
         exit 2
       fi
       command -v az >/dev/null || { echo "az CLI not installed" >&2; exit 2; }
-      az storage blob upload-batch -d "$DRP_AZURE_CONTAINER" --destination-path "$prefix" \
+      az storage blob upload-batch -d "$DEV_RELEASE_AZURE_CONTAINER" --destination-path "$prefix" \
         -s "$up_dir" --overwrite >/dev/null || { echo "Azure upload failed" >&2; exit 4; }
-      echo "uploaded $up_n file(s) to azure://$DRP_AZURE_CONTAINER/$prefix/" ;;
+      echo "uploaded $up_n file(s) to azure://$DEV_RELEASE_AZURE_CONTAINER/$prefix/" ;;
   esac
 fi
 

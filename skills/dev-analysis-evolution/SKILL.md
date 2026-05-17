@@ -17,6 +17,7 @@ scripts write only factual `metrics{}`/`body[]`; the
 
 - [Inputs](#inputs)
 - [The two fragments at a glance](#the-two-fragments-at-a-glance)
+- [Extension drill-down and module filter](#extension-drill-down-and-module-filter)
 - [Procedure](#procedure)
 - [Outputs](#outputs)
 - [Failure modes](#failure-modes)
@@ -46,16 +47,48 @@ authenticated) is optional — it enriches work-item types when present.
 Both `category: evolution`, written by `to-fragment.py`:
 
 - **`evolution`** — `metrics{}` per-release-pair series (churn, coupling
-  count, extensions touched); `body[]` extension/churn `table`s + a
-  change-concentration `treemap`.
+  count, extensions touched); `body[]` an expandable
+  extension→folder→file `table`, a per-release-pair churn `table`, a
+  change-concentration `treemap`, and (optional) code-maat churn `table`.
 - **`author-activity`** — `metrics{ pr_total, authors, new_feature_prs,
   updated_feature_prs, bug_prs, technical_prs, configuration_prs, data_prs,
   new_pattern_prs, existing_pattern_prs }` (plus `vibe_coders` **only** when a
   repo definition was found); a per-author summary `table`, a per-PR detail
-  `table`, and an author×PR-type `heatmap`.
+  `table` with a filterable `module` column, and an author×PR-type `heatmap`.
 
 Full contract:
 [`references/fragment-schema.md` in dev-report-framework](../dev-report-framework/references/fragment-schema.md).
+
+## Extension drill-down and module filter
+
+**Evolution — three-level extension drill-down.** The "Files changed by
+extension → folder → file" `table` uses recursive row `children`, collapsed by
+default:
+
+1. **Extension** (e.g. `ts`, `py`, `(none)`) with its total changed-file
+   count across the whole ref range.
+2. Expand → **folder**: the full folder path down to (but excluding) the
+   file — e.g. `src/sub`, not just `sub` — each with its changed-file count.
+3. Expand → **file**: individual file names under that folder with per-file
+   change counts.
+
+The framework's filter keeps a row when it or any descendant matches, so
+typing a folder or file name narrows the tree; sort applies within each level.
+
+**Author-activity — per-module filter.** The per-PR detail `table` carries a
+`module` column. A module is the top-level path segment of a changed file, or
+the git submodule path (from `.gitmodules`) when the file is under one — so
+`vendor/lib/deep/x.c` reports module `vendor/lib`. A PR that spans modules is
+emitted as **one detail row per module** (same PR/title/author repeated), so
+the framework's built-in case-insensitive table filter narrows the table to a
+single submodule / repository root by typing its name.
+
+**Release vs delta view.** Release-over-release comparison sections carry
+`view:"delta"` (per-release-pair churn, code-maat churn) and land in the right
+**Δ vs previous** column; point-in-time inventories (the extension→folder→file
+tree of this range, the change-concentration treemap) are default release view
+and land left. Either fragment still emits and validates when only one view
+has content (the author-activity fragment has no delta section).
 
 ## Procedure
 
@@ -83,7 +116,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/collect-history.sh" <repo> <out_dir> "<ref_l
 ```
 
 Writes `history.json` (per-adjacent-pair files-changed, lines, by-extension,
-by-author) plus the raw `--dirstat`/`--numstat` TSVs. Exit `5` on a bad ref.
+by-author, plus an `extension_tree` of extension→full-folder-path→file change
+counts over the whole ref range) and the raw `--dirstat`/`--numstat` TSVs.
+Exit `5` on a bad ref.
 
 ### 2. code-maat (optional)
 
@@ -116,8 +151,10 @@ classification. A PR-unit is one squash commit on `main`; detection defaults
 to `azure-squash` (set `PR_UNIT_STRATEGY=merge|trailer|squash-generic` to
 override). Authors are canonicalized via `.mailmap`. Each PR-unit records
 author, PR number, title, body, work-item ids (Azure work-item type resolved
-via `az` when available), changed paths, `--numstat`, and a static
-new-vs-existing pattern hint. It also locates a repo-defined "vibe coder"
+via `az` when available), changed paths, the `modules[]` each PR touches
+(top-level path segment, or `.gitmodules` submodule path when nested under
+one), `--numstat`, and a static new-vs-existing pattern hint. It also locates
+a repo-defined "vibe coder"
 definition via
 [`references/vibe-coder-definition-locations.md`](references/vibe-coder-definition-locations.md)
 and copies its text in when found. Exit `5` on a bad ref.

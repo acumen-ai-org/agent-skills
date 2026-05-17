@@ -14,10 +14,14 @@ runner scripts produce:
   - Structurizr CLI     workspace export / inspection json
   - MSADoc              service catalog json
   - ArchUnitNET / NetArchTest  trx / json test result
+  - collect-structure.py  tool-free source scan (kind architecture-source)
+  - structure-from-source.md  role payload (kind architecture-source-role)
 
 The graph becomes a d3-graph body; metrics carry node_count, edge_count,
 cycle_count, max_depth; any reported violation drives status (warn for
 cycles/soft rule findings, error for hard layering violations) and exit 4.
+The tool-free raw additionally carries an import-flow sankey, a C4 mermaid,
+and an ADR table + markdown index.
 
 Exit codes:
   0  fragment written; status ok or warn
@@ -343,6 +347,68 @@ def parse_archunit(raw):
     return [], [], violations, "archunitnet"
 
 
+def parse_source_inventory(raw):
+    if not isinstance(raw, dict):
+        return None
+    if raw.get("kind") not in ("architecture-source", "architecture-source-role"):
+        return None
+    raw_nodes = raw.get("nodes")
+    raw_edges = raw.get("edges")
+    if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list):
+        return None
+    node_ids = []
+    node_meta = {}
+    seen = set()
+    for node in raw_nodes:
+        if not isinstance(node, dict):
+            continue
+        identifier = node.get("id")
+        if not isinstance(identifier, str) or identifier in seen:
+            continue
+        seen.add(identifier)
+        node_ids.append(identifier)
+        node_meta[identifier] = {
+            "label": node.get("label") if isinstance(node.get("label"), str) else identifier,
+            "group": node.get("group") if isinstance(node.get("group"), str) else "module",
+        }
+    edges = []
+    weights = {}
+    for edge in raw_edges:
+        if not isinstance(edge, dict):
+            continue
+        source = edge.get("source")
+        target = edge.get("target")
+        if not isinstance(source, str) or not isinstance(target, str):
+            continue
+        for member in (source, target):
+            if member not in seen:
+                seen.add(member)
+                node_ids.append(member)
+                node_meta[member] = {"label": member.split("/")[-1], "group": "module"}
+        try:
+            value = int(edge.get("value", 1))
+        except (TypeError, ValueError):
+            value = 1
+        value = max(1, value)
+        edges.append((source, target))
+        weights[(source, target)] = weights.get((source, target), 0) + value
+    layout = raw.get("layout")
+    if layout not in ("force", "dag", "chord"):
+        layout = None
+    adrs = raw.get("adrs") if isinstance(raw.get("adrs"), list) else []
+    c4_mermaid = raw.get("c4_mermaid") if isinstance(raw.get("c4_mermaid"), str) else None
+    stacks = raw.get("stacks") if isinstance(raw.get("stacks"), list) else []
+    extra = {
+        "node_meta": node_meta,
+        "weights": weights,
+        "layout": layout,
+        "adrs": adrs,
+        "c4_mermaid": c4_mermaid,
+        "stacks": stacks,
+    }
+    return node_ids, edges, [], "collect-structure", extra
+
+
 def detect_and_parse(raw_path):
     text = raw_path.read_text(encoding="utf-8")
     parsed_json = None
@@ -352,6 +418,9 @@ def detect_and_parse(raw_path):
         parsed_json = None
 
     if parsed_json is not None:
+        source_result = parse_source_inventory(parsed_json)
+        if source_result is not None:
+            return source_result
         for parser in (
             parse_depcruise,
             parse_nx_graph,
@@ -362,10 +431,10 @@ def detect_and_parse(raw_path):
         ):
             result = parser(parsed_json)
             if result is not None:
-                return result
+                return result + (None,)
     dot_result = parse_dot(text)
     if dot_result is not None:
-        return dot_result
+        return dot_result + (None,)
     return None
 
 
@@ -378,7 +447,7 @@ def status_from_violations(cycles, violations):
     return "ok", 0
 
 
-def build_body(node_ids, edges, cycles, violations, metrics):
+def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
     body = [
         {
             "type": "metric-cards",
@@ -395,21 +464,35 @@ def build_body(node_ids, edges, cycles, violations, metrics):
     for cycle in cycles:
         cycle_members.update(cycle)
 
+    node_meta = extra.get("node_meta") if extra else None
+    weights = extra.get("weights") if extra else None
+    layout = (extra.get("layout") if extra else None) or "dag"
+
     if len(node_ids) <= GRAPH_NODE_RENDER_LIMIT:
-        graph_nodes = [
-            {
-                "id": node_id,
-                "label": node_id.split("/")[-1] if "/" in node_id else node_id,
-                "group": "cycle" if node_id in cycle_members else "module",
-            }
-            for node_id in node_ids
-        ]
-        graph_links = [{"source": source, "target": target} for source, target in edges]
+        graph_nodes = []
+        for node_id in node_ids:
+            if node_id in cycle_members:
+                group = "cycle"
+            elif node_meta and node_id in node_meta:
+                group = node_meta[node_id]["group"]
+            else:
+                group = "module"
+            if node_meta and node_id in node_meta:
+                label = node_meta[node_id]["label"]
+            else:
+                label = node_id.split("/")[-1] if "/" in node_id else node_id
+            graph_nodes.append({"id": node_id, "label": label, "group": group})
+        graph_links = []
+        for source, target in dict.fromkeys(edges):
+            link = {"source": source, "target": target}
+            if weights and (source, target) in weights:
+                link["value"] = weights[(source, target)]
+            graph_links.append(link)
         body.append(
             {
                 "type": "d3-graph",
                 "title": "Module dependency graph",
-                "layout": "dag",
+                "layout": layout,
                 "nodes": graph_nodes,
                 "links": graph_links,
             }
@@ -468,7 +551,169 @@ def build_body(node_ids, edges, cycles, violations, metrics):
                 ],
             }
         )
+
+    if extra is not None:
+        body.extend(_source_sections(node_ids, edges, weights, node_meta, extra))
     return body
+
+
+def _source_sections(node_ids, edges, weights, node_meta, extra):
+    sections = []
+
+    def group_of(node_id):
+        if node_meta and node_id in node_meta:
+            return node_meta[node_id]["group"]
+        return group_root(node_id)
+
+    cross = {}
+    for source, target in edges:
+        weight = weights.get((source, target), 1) if weights else 1
+        src_group = group_of(source)
+        dst_group = group_of(target)
+        if src_group != dst_group:
+            cross[(src_group, dst_group)] = cross.get((src_group, dst_group), 0) + weight
+
+    if cross:
+        flow = cross
+        flow_title = "Import flow between packages"
+    else:
+        flow = {}
+        for source, target in edges:
+            weight = weights.get((source, target), 1) if weights else 1
+            flow[(source, target)] = flow.get((source, target), 0) + weight
+        flow = _break_back_edges(flow)
+        flow_title = "Import flow"
+
+    if flow:
+        flow_node_ids = []
+        seen = set()
+        for src_node, dst_node in flow:
+            for member in (src_node, dst_node):
+                if member not in seen:
+                    seen.add(member)
+                    flow_node_ids.append(member)
+
+        def flow_label(node_id):
+            if cross:
+                return node_id
+            if node_meta and node_id in node_meta:
+                return node_meta[node_id]["label"]
+            return node_id.split("/")[-1] if "/" in node_id else node_id
+
+        sections.append(
+            {
+                "type": "sankey",
+                "title": flow_title,
+                "nodes": [{"id": nid, "label": flow_label(nid)} for nid in flow_node_ids],
+                "links": [
+                    {"source": src_node, "target": dst_node, "value": value}
+                    for (src_node, dst_node), value in sorted(flow.items())
+                ],
+            }
+        )
+
+    c4_mermaid = extra.get("c4_mermaid")
+    if not c4_mermaid:
+        c4_mermaid = _default_c4(node_ids, edges, node_meta)
+    sections.append(
+        {
+            "type": "mermaid",
+            "title": "C4 context / container",
+            "diagram": c4_mermaid,
+        }
+    )
+
+    adrs = extra.get("adrs") or []
+    if adrs:
+        sections.append(
+            {
+                "type": "table",
+                "title": "Architecture decision records",
+                "filterable": True,
+                "columns": [
+                    {"key": "title", "label": "Title", "type": "string", "sortable": True},
+                    {"key": "status", "label": "Status", "type": "string", "sortable": True},
+                    {"key": "path", "label": "Path", "type": "string", "sortable": True},
+                ],
+                "rows": [
+                    {
+                        "title": str(adr.get("title", "")),
+                        "status": str(adr.get("status", "")),
+                        "path": str(adr.get("path", "")),
+                    }
+                    for adr in adrs
+                ],
+                "defaultSort": {"key": "path", "dir": "asc"},
+            }
+        )
+        sections.append(
+            {
+                "type": "markdown",
+                "title": "ADR index",
+                "md": (
+                    f"{len(adrs)} architecture decision record(s) found. "
+                    "The table above lists each record's title, status, and path. "
+                    "Statuses other than `accepted` warrant review against the "
+                    "current dependency graph."
+                ),
+            }
+        )
+    else:
+        sections.append(
+            {
+                "type": "markdown",
+                "title": "ADR index",
+                "md": (
+                    "No architecture decision records were found under the "
+                    "configured ADR glob set. Recording decisions makes "
+                    "structural drift reviewable across releases."
+                ),
+            }
+        )
+    return sections
+
+
+def group_root(node_id):
+    return node_id.split("/")[0] if "/" in node_id else "."
+
+
+def _break_back_edges(flow):
+    order = {}
+    nodes = []
+    for source, target in flow:
+        for member in (source, target):
+            if member not in order:
+                order[member] = len(nodes)
+                nodes.append(member)
+    acyclic = {}
+    for (source, target), value in flow.items():
+        if order[source] < order[target]:
+            acyclic[(source, target)] = value
+    return acyclic if acyclic else flow
+
+
+def _default_c4(node_ids, edges, node_meta):
+    groups = []
+    seen = set()
+    for node_id in node_ids:
+        group = node_meta[node_id]["group"] if node_meta and node_id in node_meta else group_root(node_id)
+        if group not in seen:
+            seen.add(group)
+            groups.append(group)
+    group_edges = set()
+    for source, target in edges:
+        src_group = node_meta[source]["group"] if node_meta and source in node_meta else group_root(source)
+        dst_group = node_meta[target]["group"] if node_meta and target in node_meta else group_root(target)
+        if src_group != dst_group:
+            group_edges.add((src_group, dst_group))
+    alias = {group: f"c{index}" for index, group in enumerate(groups)}
+    lines = ["flowchart TD", '  subgraph System["System (containers)"]']
+    for group in groups:
+        lines.append(f'    {alias[group]}["{group}"]')
+    lines.append("  end")
+    for src_group, dst_group in sorted(group_edges):
+        lines.append(f"  {alias[src_group]} --> {alias[dst_group]}")
+    return "\n".join(lines)
 
 
 def main():
@@ -489,7 +734,7 @@ def main():
         sys.stderr.write(f"unrecognized or unparseable architecture output: {raw_path}\n")
         return 2
 
-    node_ids, edges, violations, tool_name = parsed
+    node_ids, edges, violations, tool_name, extra = parsed
     node_set = list(dict.fromkeys(node_ids))
     adjacency = adjacency_from_edges(node_set, edges)
     cycles = cycles_from_components(tarjan_scc(adjacency))
@@ -500,6 +745,9 @@ def main():
         f"{metrics['node_count']} modules, {metrics['edge_count']} dependencies, "
         f"{metrics['cycle_count']} cycles, max depth {metrics['max_depth']}."
     )
+    if extra is not None:
+        adr_count = len(extra.get("adrs") or [])
+        summary += f" {adr_count} ADR(s); source-scanned (no analyzer)."
 
     fragment = {
         "schema": SCHEMA_VERSION,
@@ -511,7 +759,7 @@ def main():
         "producer": {"skill": SKILL_NAME, "tool": tool_name, "version": "1"},
         "generated_at": now_iso(),
         "metrics": metrics,
-        "body": build_body(node_set, edges, cycles, violations, metrics),
+        "body": build_body(node_set, edges, cycles, violations, metrics, extra),
     }
 
     out_path.parent.mkdir(parents=True, exist_ok=True)

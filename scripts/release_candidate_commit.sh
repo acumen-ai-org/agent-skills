@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
-repo=${DRP_REPO:-.}
-export DRP_REPO="$repo"
-export DRP_CONFIG=${DRP_CONFIG:-$repo/dev-process.json}
+repo=${DEV_RELEASE_REPO:-.}
+export DEV_RELEASE_REPO="$repo"
+export DEV_RELEASE_CONFIG=${DEV_RELEASE_CONFIG:-$repo/dev-process.json}
 cfg=$(python3 "$here/dev_process.py" emit) || { echo "dev-process: config invalid" >&2; exit 2; }
 get() { printf '%s' "$cfg" | python3 -c 'import json,sys
 d=json.load(sys.stdin)

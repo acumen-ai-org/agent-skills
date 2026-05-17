@@ -25,8 +25,12 @@ CATEGORIES = {
     "schema",
     "contracts",
     "mission",
+    "test-coverage",
+    "test-reports",
+    "overview",
 }
 STATUSES = {"ok", "info", "warn", "error"}
+SECTION_VIEWS = {"release", "delta"}
 SECTION_TYPES = {
     "markdown",
     "table",
@@ -37,6 +41,7 @@ SECTION_TYPES = {
     "treemap",
     "heatmap",
     "mermaid",
+    "image",
 }
 ID_ALLOWED = set("abcdefghijklmnopqrstuvwxyz0123456789-")
 
@@ -49,6 +54,51 @@ def _is_obj(value):
     return isinstance(value, dict)
 
 
+def _validate_rows(rows, where, depth=0):
+    errors = []
+    if depth > 64:
+        errors.append(f"{where}: row nesting too deep")
+        return errors
+    for ri, row in enumerate(rows):
+        if not _is_obj(row):
+            errors.append(f"{where}: rows[{ri}] must be an object")
+            continue
+        children = row.get("children")
+        if children is not None:
+            if not isinstance(children, list):
+                errors.append(f"{where}: rows[{ri}].children must be an array")
+            else:
+                errors.extend(
+                    _validate_rows(children, f"{where} rows[{ri}].children", depth + 1)
+                )
+    return errors
+
+
+def _validate_files(section, where):
+    errors = []
+    files = section.get("files")
+    if files is None:
+        return errors
+    if not isinstance(files, list):
+        errors.append(f"{where}: 'files' must be an array")
+        return errors
+    for fi, entry in enumerate(files):
+        if not _is_obj(entry):
+            errors.append(f"{where}: files[{fi}] must be an object")
+            continue
+        if not _is_str(entry.get("path")):
+            errors.append(f"{where}: files[{fi}] needs a non-empty 'path' string")
+        if not _is_str(entry.get("lang")):
+            errors.append(f"{where}: files[{fi}] needs a non-empty 'lang' string")
+        if not isinstance(entry.get("excerpt"), str):
+            errors.append(f"{where}: files[{fi}] needs an 'excerpt' string")
+        if "startLine" in entry and entry["startLine"] is not None:
+            start = entry["startLine"]
+            if not isinstance(start, int) or isinstance(start, bool):
+                errors.append(f"{where}: files[{fi}].startLine must be an integer")
+    return errors
+
+
 def _validate_section(section, index):
     errors = []
     where = f"body[{index}]"
@@ -57,6 +107,9 @@ def _validate_section(section, index):
     section_type = section.get("type")
     if not _is_str(section_type):
         return [f"{where}: missing 'type'"]
+    if "view" in section and section["view"] not in SECTION_VIEWS:
+        errors.append(f"{where}: 'view' must be 'release' or 'delta'")
+    errors.extend(_validate_files(section, where))
     if section_type not in SECTION_TYPES:
         return errors
     if "title" in section and not isinstance(section["title"], str):
@@ -74,10 +127,12 @@ def _validate_section(section, index):
             for ci, column in enumerate(columns):
                 if not _is_obj(column) or not _is_str(column.get("key")) or not _is_str(column.get("label")):
                     errors.append(f"{where} (table): columns[{ci}] needs 'key' and 'label'")
-                elif column.get("type") not in ("string", "number"):
-                    errors.append(f"{where} (table): columns[{ci}].type must be 'string' or 'number'")
+                elif column.get("type") not in ("string", "number", "file"):
+                    errors.append(f"{where} (table): columns[{ci}].type must be 'string', 'number' or 'file'")
         if not isinstance(rows, list):
             errors.append(f"{where} (table): 'rows' must be an array")
+        else:
+            errors.extend(_validate_rows(rows, f"{where} (table)"))
     elif section_type == "key-value":
         pairs = section.get("pairs")
         if not isinstance(pairs, list) or not pairs:
@@ -109,8 +164,8 @@ def _validate_section(section, index):
             for li, link in enumerate(links):
                 if not _is_obj(link) or "source" not in link or "target" not in link:
                     errors.append(f"{where} (d3-graph): links[{li}] needs 'source' and 'target'")
-        if section.get("layout") not in ("force", "dag"):
-            errors.append(f"{where} (d3-graph): 'layout' must be 'force' or 'dag'")
+        if section.get("layout") not in ("force", "dag", "chord"):
+            errors.append(f"{where} (d3-graph): 'layout' must be 'force', 'dag' or 'chord'")
     elif section_type == "sankey":
         nodes = section.get("nodes")
         links = section.get("links")
@@ -145,6 +200,13 @@ def _validate_section(section, index):
     elif section_type == "mermaid":
         if not _is_str(section.get("diagram")):
             errors.append(f"{where} (mermaid): missing 'diagram' string")
+    elif section_type == "image":
+        if not _is_str(section.get("src")):
+            errors.append(f"{where} (image): missing 'src' string")
+        if not _is_str(section.get("alt")):
+            errors.append(f"{where} (image): missing 'alt' string")
+        if "title" in section and not isinstance(section["title"], str):
+            errors.append(f"{where} (image): 'title' must be a string")
     return errors
 
 

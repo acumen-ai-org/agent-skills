@@ -4,11 +4,21 @@
 Usage:
   dev-report-build <release-id> <fragments-dir> <reports-root>
                    [--vcs-ref REF] [--label TEXT] [--no-embed]
+                   [--design FILE] [--commits N]
 
 Builds reports/<release-id>/ atomically (temp dir -> move on success only),
 upserts reports/releases.json (newest-first by id), and embeds the manifest
 plus every fragment into index.html so the folder opens via file:// with no
 server. data/*.json is always written too.
+
+--design FILE reads FILE, extracts every CSS :root{...} block (fenced ```css
+or raw), and injects the concatenated rules as one <style id="design-override">
+immediately before </head> so it overrides the default app.css theme variables.
+A file with no :root block is a non-fatal notice; the default theme is used.
+
+--commits N records commit_count in the manifest release object so the renderer
+formats the report title as "<created_at date> Release: N commits"; without it
+the commit clause is omitted.
 
 Exit codes:
   0  report folder written; releases.json updated
@@ -20,6 +30,7 @@ import argparse
 import datetime
 import json
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -43,12 +54,31 @@ CATEGORY_LABELS = {
     "schema": "Schema",
     "contracts": "Contracts",
     "mission": "Mission",
+    "test-coverage": "Test coverage",
+    "test-reports": "Test reports",
+    "overview": "Overview",
 }
+
+
+ROOT_BLOCK_RE = re.compile(r":root\s*\{[^}]*\}", re.IGNORECASE)
 
 
 def fail(code, message):
     sys.stderr.write(message + "\n")
     return code
+
+
+def extract_root_blocks(text):
+    return [match.group(0).strip() for match in ROOT_BLOCK_RE.finditer(text)]
+
+
+def build_design_override(design_path):
+    text = pathlib.Path(design_path).read_text(encoding="utf-8")
+    blocks = extract_root_blocks(text)
+    if not blocks:
+        return None
+    rules = "\n".join(blocks)
+    return '<style id="design-override">\n' + rules + "\n</style>\n"
 
 
 def capture_git_sha():
@@ -156,6 +186,8 @@ def main():
     parser.add_argument("--vcs-ref", default=None)
     parser.add_argument("--label", default=None)
     parser.add_argument("--no-embed", action="store_true")
+    parser.add_argument("--design", default=None)
+    parser.add_argument("--commits", type=int, default=None)
     try:
         args = parser.parse_args()
     except SystemExit:
@@ -200,8 +232,25 @@ def main():
         "git_sha": git_sha,
         "created_at": created_at,
         "label": args.label or release_id,
+        "commit_count": args.commits,
     }
     manifest = build_manifest(parsed, release)
+
+    design_override = None
+    if args.design is not None:
+        try:
+            design_override = build_design_override(args.design)
+        except OSError as error:
+            sys.stderr.write(
+                f"design: cannot read {args.design}: {error}; "
+                "using default theme\n"
+            )
+        if design_override is None:
+            sys.stderr.write(
+                f"design: no fenced css :root block in {args.design}; "
+                "run references/design-to-theme.md to derive one — "
+                "using default theme\n"
+            )
 
     try:
         staging_root = pathlib.Path(
@@ -233,6 +282,10 @@ def main():
                 + "</script>"
             )
             index_html = index_html.replace(DATA_ISLAND_PLACEHOLDER, island)
+        if design_override is not None:
+            index_html = index_html.replace(
+                "</head>", design_override + "</head>", 1
+            )
         (staging / "index.html").write_text(index_html, encoding="utf-8")
 
         final = reports_root / release_id
@@ -254,6 +307,7 @@ def main():
                 "git_sha": git_sha,
                 "created_at": created_at,
                 "label": args.label or release_id,
+                "commit_count": args.commits,
                 "path": f"{release_id}/",
             },
         )

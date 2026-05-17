@@ -20,6 +20,7 @@ tool, then `to-fragment.py` emits the fragment. Scripts write only facts; the
 - [Inputs](#inputs)
 - [Picking the analyzer](#picking-the-analyzer)
 - [Procedure](#procedure)
+- [Tool-free fallback](#tool-free-fallback)
 - [The fragment it emits](#the-fragment-it-emits)
 - [Authoring layering rules](#authoring-layering-rules)
 - [F# limitation](#f-limitation)
@@ -67,11 +68,16 @@ a distinct `id`.
 Copy this checklist into your response and tick as you go:
 
 ```
-- [ ] 1. Pick analyzer  — per the stack table
-- [ ] 2. Run runner     — scripts/run-<tool>.sh <target> <out_dir>
-- [ ] 3. Synthesize     — references/architecture-synthesis.md on the fragment
-- [ ] 4. Validate       — validate_fragments.py <out_dir>  → must exit 0
+- [ ] 1. Pick analyzer   — per the stack table
+- [ ] 2. Run runner      — scripts/run-<tool>.sh <target> <out_dir>
+- [ ] 2b. Tool-free path  — if EVERY runner you need exits 3, run the
+                           tool-free fallback instead (see that section)
+- [ ] 3. Synthesize      — references/architecture-synthesis.md on the fragment
+- [ ] 4. Validate        — validate_fragments.py <out_dir>  → must exit 0
 ```
+
+If no analyzer is installed, step 2b keeps the Skill producing a valid
+fragment — it never fails solely because no analyzer is available.
 
 ### 1. Pick analyzer
 
@@ -109,6 +115,66 @@ python3 "${CLAUDE_PLUGIN_ROOT}/skills/dev-report-framework/scripts/validate_frag
 Exit `0` → the fragment conforms, hand it to `dev-report-build`. Exit `3` →
 fix and re-run. This is the feedback loop; iterate validate → fix → repeat.
 
+## Tool-free fallback
+
+When every analyzer runner you would use exits `3` (Node, Docker, the .NET
+SDK, and cargo all absent — no runtime can be installed), the Skill still
+produces a valid `architecture` fragment via a pure-`python3`-plus-`git` path.
+It never fails solely because no analyzer is installed.
+
+```
+- [ ] a. Scan source   — python3 scripts/collect-structure.py <repo> <out_dir> [ref]
+- [ ] b. Apply judgement — references/structure-from-source.md on the raw JSON
+- [ ] c. Normalize     — python3 scripts/to-fragment.py architecture-source \
+                          <out_dir>/architecture-source.raw.json \
+                          <out_dir>/architecture-source.fragment.json
+- [ ] d. Synthesize + validate — steps 3 and 4 above, unchanged
+```
+
+**a. Scan source.** `scripts/collect-structure.py <repo> <out_dir> [ref]`
+statically scans tracked source for a module/package dependency inventory
+across stacks (TS/JS `import`/`require`; Python `import`/`from`; C#/F# `using`
++ `.csproj`/`.fsproj` `<ProjectReference>`; Rust `mod`/`use`; Go `import`) —
+nodes + directed edges with `value` = import/reference count — and an ADR
+inventory. With `[ref]` every file is read from `git show <ref>:<path>` so a
+release tag is inventoried without a checkout. Because this *is* the no-tool
+path it never exits `3`: exit `0` on success, `5` on a bad repo/ref, `1` on
+bad args. It writes one raw JSON, `architecture-source.raw.json`.
+
+ADR inventory globs (matched against repo-relative paths):
+
+```
+docs/adr*/**/*.md   docs/adr*/*.md
+docs/decisions/**/*.md   docs/decisions/*.md
+adr/**/*.md   adr/*.md
+**/*-adr-*.md
+```
+
+Each match contributes its path, `# ` title, and `Status:` line to the ADR
+index.
+
+**b. Apply judgement.** Module grouping and C4 boundaries are judgement the
+script cannot make. Read [`references/structure-from-source.md`](references/structure-from-source.md)
+against the raw JSON — inline, or delegated to an isolated agent for fresh
+context — and write its strict payload next to the raw (it shares the raw's
+`kind`/node/edge shape). Skip this only when no judgement is needed; the raw
+alone is already a valid `to-fragment.py` input.
+
+**c. Normalize.** Run `to-fragment.py` on the raw (or the role payload). The
+tool-free path emits the same `architecture` fragment with the existing
+metrics keys plus: a `d3-graph` (layout `force`/`dag`, or `chord` for
+all-to-all coupling — chord is allowed by the framework), a `sankey` of
+import flow weighted by import count, a C4 `mermaid` context/container view,
+and an ADR `table` + a short `markdown` index.
+
+**d.** Synthesize and validate exactly as steps 3 and 4 — the fragment is
+identical in shape to a tool-produced one, so the rest of the pipeline is
+unchanged.
+
+Every `run-*.sh` wrapper is untouched: each still exits `3` (with its install
+and pinned-run lines) when its runtime is absent. The fallback is selected by
+this guidance when all of them do, not by rewriting any runner.
+
 ## The fragment it emits
 
 One fragment, `category: architecture`, `schema: dev-report-fragment/v1`.
@@ -121,7 +187,9 @@ One fragment, `category: architecture`, `schema: dev-report-fragment/v1`.
   (`layout: dag`; cycle members in a distinct group), a `Cycles` table when
   cycles exist, a `Rule violations` table when the analyzer reported any. Above
   300 nodes the graph is replaced by a note (the metrics and tables stay
-  authoritative) so the report stays renderable.
+  authoritative) so the report stays renderable. The tool-free path adds a
+  `sankey` of import flow (weighted by import count), a C4 `mermaid`, and an
+  ADR `table` + `markdown` index, and may set the graph `layout` to `chord`.
 - `status` — `ok` (clean), `warn` (cycles or advisory violations), `error`
   (a blocking layering violation; runner exits `4`).
 
@@ -161,6 +229,9 @@ so the split-screen diff and prev/next walk line up.
 - **Runtime missing (Node/Docker/dotnet/cargo)** → exit `3`; the script
   printed the exact install command and the pinned run line. Never
   auto-install; install once, re-run.
+- **Every analyzer runtime missing** → each runner still exits `3`; switch to
+  the [tool-free fallback](#tool-free-fallback). The Skill never fails solely
+  because no analyzer is installed.
 - **Tool ran, output unparseable** → exit `2`; the raw file is kept. Inspect
   it, adjust the target, re-run.
 - **Blocking layering violation found** → exit `4`, `status: error`, fragment

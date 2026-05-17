@@ -107,8 +107,10 @@ Every tool from the brief appears exactly once, grouped by its owning Skill.
 
 | Capability | Owning Skill | Runtime | Notes |
 | ---------- | ------------ | ------- | ----- |
-| Fragment validation + report build + standalone HTML shell | `dev-report-framework` | python3 (stdlib) + CDN libs | Owns the contract; reuses `content-to-image` for the report hero. CDN: marked/DOMPurify/D3 v7/Mermaid. |
+| Fragment validation + report build + standalone "Release candidate report" | `dev-report-framework` | python3 (stdlib) + CDN libs | Owns the contract (`view` two-column release/Δ tag, `files[]` preview, table `children`, `image`, `d3-graph` force/dag/chord). Per-section top menu, show/hide previous releases, optional DESIGN.md theming. CDN: marked/DOMPurify/D3 v7/Mermaid. |
 | Multi-perspective `git diff` → Slidev deck | `dev-report-release-diff` | bash + python3, Node (Slidev, MIT) | Reuses evolution's diff collectors, `dev-analysis-schema`, and `content-to-image` (one image per perspective). |
+| Pinned report landing page (scope infographic + bullets) | `dev-report-overview` | python3 (stdlib), reuses `content-to-image` | Runs last; reads the assembled fragments + scope; emits the `overview` fragment the framework pins as the default landing. |
+| Unit test coverage / e2e test reports | none — **empty slots** | n/a | Categories `test-coverage` and `test-reports` exist in the contract + nav; the consuming repo wires its own tool via a `dev-process.json` `analysis`/`review` entry. No producer ships. |
 
 The `git diff main...feature` multi-perspective capability from the brief is
 `dev-report-release-diff`. The eight default perspectives are: architecture
