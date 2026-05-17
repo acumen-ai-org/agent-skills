@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-skills/dev-process.schema.json",
+  "title": "dev-process",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "branches", "scope", "reports", "releaseNotes"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "type": "integer", "const": 1 },
+    "branches": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["main", "production", "releaseCandidate"],
+      "properties": {
+        "main": { "type": "string" },
+        "production": { "type": "string" },
+        "releaseCandidate": { "type": "string" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "range": { "type": "string" },
+        "productionRef": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "strategy": { "enum": ["branch", "tag", "commit"] },
+            "tagPattern": { "type": "string" },
+            "commit": { "type": ["string", "null"] }
+          }
+        },
+        "fallbackOrder": {
+          "type": "array",
+          "items": { "enum": ["branch", "tag", "commit", "root"] }
+        },
+        "changedFilesPathspec": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "analysis": { "type": "array", "items": { "$ref": "#/$defs/tool" } },
+    "review": { "type": "array", "items": { "$ref": "#/$defs/tool" } },
+    "reports": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outputDir"],
+      "properties": {
+        "outputDir": { "type": "string" },
+        "viewerPath": { "type": "string" },
+        "persistInRepo": { "enum": ["all", "none", "except-media"] },
+        "mediaExtensions": { "type": "array", "items": { "type": "string" } },
+        "persistPath": { "type": "string" },
+        "aggregate": { "$ref": "#/$defs/optionalStep" }
+      }
+    },
+    "releaseNotes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "changelogPath": { "type": "string" },
+        "sources": { "type": "array", "items": { "enum": ["commits", "PRs", "tags"] } },
+        "changelogMode": { "enum": ["prepend", "overwrite"] },
+        "commitSubjectFilter": { "type": ["string", "null"] },
+        "generate": { "$ref": "#/$defs/optionalStep" }
+      }
+    },
+    "blob": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": { "enum": ["none", "aws", "azure"] },
+        "prefix": { "type": "string" }
+      }
+    }
+  },
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+        "title": { "type": "string" },
+        "kind": { "enum": ["command", "skill"] },
+        "run": { "type": ["string", "null"] },
+        "args": { "type": "object" },
+        "report": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "format": { "enum": ["text", "markdown", "html", "json", "sarif"] }
+          }
+        },
+        "heavy": { "type": "boolean" },
+        "parallelizable": { "type": "boolean" },
+        "blocking": { "type": "boolean" },
+        "advisory": { "type": "boolean" },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "enabled": { "type": "boolean" }
+      },
+      "allOf": [
+        { "if": { "properties": { "kind": { "const": "command" } } }, "then": { "required": ["run"] } },
+        { "if": { "properties": { "kind": { "const": "skill" } } }, "then": { "required": ["run"] } }
+      ]
+    },
+    "optionalStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["command", "skill"] },
+        "run": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

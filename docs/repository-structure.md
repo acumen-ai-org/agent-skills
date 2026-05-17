@@ -5,6 +5,7 @@ How this repo is laid out and why. Conventions here are enforced in review.
 ## Contents
 
 - [Tree](#tree)
+- [Plugin & marketplace](#plugin--marketplace)
 - [Skills](#skills)
 - [Shared agents](#shared-agents)
 - [Repo-level references, hooks, scripts](#repo-level-references-hooks-scripts)
@@ -17,6 +18,9 @@ How this repo is laid out and why. Conventions here are enforced in review.
 
 ```
 agent-skills/
+├── .claude-plugin/
+│   ├── plugin.json                 # this repo as a Claude Code plugin
+│   └── marketplace.json            # single-plugin marketplace catalog
 ├── CLAUDE.md                       # agent entry point → /docs
 ├── README.md                       # human entry point
 ├── LICENSE                         # AGPLv3 (community use)
@@ -28,7 +32,8 @@ agent-skills/
 │   ├── repository-structure.md     # this file
 │   ├── skills-vs-agents.md         # decision guide + the "better pattern"
 │   ├── authoring-skills.md         # SKILL.md best practices (Anthropic summary)
-│   └── authoring-agents.md         # agent/role authoring conventions
+│   ├── authoring-agents.md         # agent/role authoring conventions
+│   └── plugin-and-marketplace.md   # packaging/distribution as a CC plugin
 ├── skills/
 │   ├── README.md                   # index of available Skills
 │   └── content-to-image/
@@ -53,6 +58,24 @@ version-controlled until they contain a file**. They are conventional
 locations: create the directory when you have its first occupant (see
 [Repo-level references, hooks, scripts](#repo-level-references-hooks-scripts)).
 A fresh clone will not contain them — that is expected.
+
+## Plugin & marketplace
+
+`.claude-plugin/` holds the two manifests that make this repo installable as a
+Claude Code plugin:
+
+- `plugin.json` — the plugin manifest (name `agent-skills`, metadata,
+  dual-license SPDX expression). Components are auto-discovered from `skills/`
+  and `agents/` at the repo root, so no component paths are declared.
+- `marketplace.json` — a single-plugin catalog (marketplace name
+  `acumen-agent-skills`; the plugin's `source` is `"."`, the repo root).
+
+Only the manifests live in `.claude-plugin/` — component dirs (`skills/`,
+`agents/`, `hooks/`) stay at the repo root, which is also the plugin root.
+The marketplace is **not** named `agent-skills`: that name is reserved for
+Anthropic. Full detail, schemas, install/test/version commands, and the
+upstream doc citations are in
+[plugin-and-marketplace.md](plugin-and-marketplace.md).
 
 ## Skills
 

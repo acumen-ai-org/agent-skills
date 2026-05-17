@@ -8,6 +8,11 @@ Authoring and structure guidance for this repository. Start here.
 | [skills-vs-agents.md](skills-vs-agents.md)           | You're deciding whether something is a Skill, a subagent, or a role file.  |
 | [authoring-skills.md](authoring-skills.md)           | You're writing or reviewing a `SKILL.md`.                                   |
 | [authoring-agents.md](authoring-agents.md)           | You're writing an agent/role definition (registered subagent or role doc). |
+| [plugin-and-marketplace.md](plugin-and-marketplace.md) | You're packaging, testing, installing, or versioning this repo as a Claude Code plugin/marketplace. |
+| [dev-tooling-catalog.md](dev-tooling-catalog.md)     | You want the OSS analysis/reporting tools available and which Skill owns each.                      |
+| [dev-skill-taxonomy.md](dev-skill-taxonomy.md)       | You're placing a new dev-tooling tool (the `dev-analysis-`/`dev-test-`/`dev-report-` rule).         |
+| [dev-report-framework.md](dev-report-framework.md)   | You're producing or consuming report fragments, or building the standalone HTML report.            |
+| [tools_implementation.md](tools_implementation.md)   | You're implementing the dev-tooling Skills (the ordered build backlog).                             |
 
 ## Sources
 
