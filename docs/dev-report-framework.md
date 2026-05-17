@@ -19,7 +19,7 @@ on `body[].type`, so a new `dev-analysis-` Skill needs zero framework changes.
 - [Release identity](#release-identity)
 - [The file:// problem and the embed mitigation](#the-file-problem-and-the-embed-mitigation)
 - [CDN libraries](#cdn-libraries)
-- [Split-screen model](#split-screen-model)
+- [Layout, navigation, and split-screen model](#layout-navigation-and-split-screen-model)
 - [dev-report-build](#dev-report-build)
 - [validate_fragments.py](#validate_fragmentspy)
 
@@ -32,7 +32,7 @@ schema is enforced by `validate_fragments.py`; this table is its meaning.
 | -------------- | ------------- | -------- | ----- |
 | `schema`       | string        | yes      | Contract version. `"dev-report-fragment/v1"`. Forward-compat gate. |
 | `id`           | string        | yes      | `[a-z0-9-]+`, unique within a release. Filename, nav anchor, and the cross-release diff key. |
-| `category`     | enum          | yes      | One of `architecture \| evolution \| dependencies \| quality \| security \| schema \| contracts \| mission`. Drives left-nav grouping. |
+| `category`     | enum          | yes      | One of `architecture \| evolution \| dependencies \| quality \| security \| schema \| contracts \| mission \| test-coverage \| test-reports \| overview`. Drives left-nav grouping; `overview` is pinned first and is the default landing. |
 | `title`        | string        | yes      | Human label in nav + fragment header. |
 | `summary`      | string        | yes      | One line, plain text (no markdown). Nav tooltip + overview row. |
 | `status`       | enum          | yes      | `ok \| info \| warn \| error`. Drives the badge and overview roll-up. |
@@ -54,24 +54,34 @@ producer Skill's `*-synthesis.md` role enriches `summary` and adds narrative
 
 ## Body section types
 
-Each `body[]` element is `{ "type": <enum>, "title"?: <string>, ...type fields }`.
-The renderer has exactly one function per type. Nine types in v1:
+Each `body[]` element is
+`{ "type": <enum>, "title"?: <string>, "view"?: "release\|delta",
+"files"?: [...], ...type fields }`. The renderer has exactly one function per
+type. Ten types in v1:
 
 | `type`         | Shape (beyond `type`/`title`) | Renders as |
 | -------------- | ----------------------------- | ---------- |
 | `markdown`     | `md: string` (GitHub-flavored) | Sanitized HTML. |
-| `table`        | `columns:[{key,label,type:"string\|number",sortable?}], rows:[obj], filterable?, defaultSort?:{key,dir}` | Sortable/filterable table. |
+| `table`        | `columns:[{key,label,type:"string\|number\|file",sortable?}], rows:[obj], filterable?, defaultSort?:{key,dir}`; a row MAY carry `children:[row,…]` | Sortable/filterable table; rows with `children` are expandable; `type:"file"` cells are clickable file tokens. |
 | `key-value`    | `pairs:[{k,v}]` | Definition list. |
 | `metric-cards` | `cards:[{label,value,unit?,delta_metric?}]` | Big-number tiles. `delta_metric` links a card to a `metrics` key so split-screen shows ▲/▼. |
-| `d3-graph`     | `nodes:[{id,label,group?}], links:[{source,target,value?}], layout:"force\|dag"` | Force or layered DAG. |
+| `d3-graph`     | `nodes:[{id,label,group?}], links:[{source,target,value?}], layout:"force\|dag\|chord"` | Force, layered DAG, or chord. `chord` is a layout value, not a body type. |
 | `sankey`       | `nodes:[{id,label}], links:[{source,target,value}]` | Flow diagram. |
 | `treemap`      | `root:{name,children?,value?}` | Hierarchical size. |
 | `heatmap`      | `xLabels:[], yLabels:[], cells:[{x,y,v}], colorScale:"sequential\|diverging"` | Matrix heatmap. |
 | `mermaid`      | `diagram: string` | Client-side `mermaid.render`. |
+| `image`        | `src: string` (`data:image/…;base64,…` or relative `assets/…`), `alt: string`, `title?` | Constrained `<img>`. Used for the Overview infographic. |
 
 An unrecognized `type` renders a visible "unsupported section type `X`
 (fragment `id`)" placeholder. It never fails the build — the contract is
 forward-compatible by design.
+
+`view` (`"release"|"delta"`, absent ⇒ `"release"`) decides which of the two
+permanent columns a section lands in; an invalid value fails validation.
+`files:[{path,lang,excerpt,startLine?}]` carries producer-embedded source
+excerpts; a path string matching a `files[].path` on the same section becomes
+a clickable token opening a preview modal (markdown via marked+DOMPurify,
+otherwise an escaped `<pre>`). The build never reads files.
 
 ## Filled example
 
@@ -141,7 +151,7 @@ when it is also inlined into `index.html` (see below).
   "schema": "dev-report-manifest/v1",
   "release": { "id": "2026.05.0", "vcs_ref": "v2026.05.0",
                "git_sha": "9f3c1a7", "created_at": "2026-05-17T09:30:00Z",
-               "label": "May 2026 release" },
+               "label": "May 2026 release", "commit_count": 96 },
   "rollup": { "ok": 12, "info": 3, "warn": 4, "error": 1 },
   "categories": [
     { "id": "dependencies", "label": "Dependencies", "fragments": [
@@ -163,9 +173,11 @@ fragment on demand. Categories with no fragments are omitted from the nav.
   "schema": "dev-report-releases/v1",
   "releases": [
     { "id": "2026.05.0", "vcs_ref": "v2026.05.0", "git_sha": "9f3c1a7",
-      "created_at": "2026-05-17T09:30:00Z", "label": "May 2026", "path": "2026.05.0/" },
+      "created_at": "2026-05-17T09:30:00Z", "label": "May 2026",
+      "commit_count": 96, "path": "2026.05.0/" },
     { "id": "2026.04.0", "vcs_ref": "v2026.04.0", "git_sha": "1b2d4e8",
-      "created_at": "2026-04-12T08:00:00Z", "label": "April 2026", "path": "2026.04.0/" }
+      "created_at": "2026-04-12T08:00:00Z", "label": "April 2026",
+      "commit_count": 71, "path": "2026.04.0/" }
   ]
 }
 ```
@@ -233,24 +245,48 @@ CDN libs require network on first open (the browser caches afterward). This is
 documented in the Skill; vendoring libraries into `assets/` is a future
 option, not part of v1.
 
-## Split-screen model
+## Layout, navigation, and split-screen model
 
+- **Shell title** is "Release candidate report". The rendered report title is
+  `YYYY-MM-DD Release: N commits` — the date is the `release.created_at` date,
+  `N` is `commit_count` (from `--commits`). Without a commit count the
+  `: N commits` clause is dropped. Id, vcs-ref, label, and SHA remain in the
+  manifest but are not the displayed title.
+- **Permanent two columns.** Every fragment renders as two fixed side-by-side
+  columns: a left **This release** column (all `view:"release"`/untagged
+  sections, in `body[]` order) and a right **Δ vs previous** column (all
+  `view:"delta"` sections, in order). An empty column shows a muted
+  `— nothing for this view —`. This is structural and separate from the
+  show/hide-previous-releases feature; untagged fragments are
+  backward-compatible (everything lands left).
 - **Left nav** is built from `manifest.json`: categories → fragments, a status
-  dot per fragment, a roll-up badge per category. The URL hash
-  (`#dependencies/dependency-graph`) deep-links and drives the back button.
-- A **single/split toggle** switches between current-release-only and two
-  side-by-side panes showing the same fragment `id`.
-- In split mode the right pane has `◀ ▶` controls (and left/right arrow keys
-  when the report has focus) that walk `releases.json`; entries after the
-  current one are older. The right pane loads
+  dot per fragment, a roll-up badge per category. An `overview` category is
+  pinned first and its fragment (lexically-first `id` if several) is the
+  default page on load. The URL hash (`#dependencies/dependency-graph`)
+  deep-links and drives the back button.
+- **Per-section top menu.** Selecting a category with more than one fragment
+  shows a horizontal tab menu of that category's fragments inside the content
+  area; picking one shows just that fragment instead of one long scroll.
+- A **show/hide-previous-releases toggle** (labelled "Show/hide previous
+  releases") switches between current-release-only and a second pane showing
+  the same fragment `id` from a sibling release.
+- With the previous pane shown it has `◀ ▶` controls (and left/right arrow
+  keys when the report has focus) that walk `releases.json`; entries after the
+  current one are older. The pane loads
   `../<prev-release>/data/<category>/<fragment-id>.json` — a sibling-folder
   relative path that works because all releases sit under `reports/`.
-- If a fragment `id` is absent in the previous release, the right pane shows a
+- If a fragment `id` is absent in the previous release, the pane shows a
   "not present in `<release>`" placeholder (a newly added analyzer is handled
   gracefully).
 - When both panes show the same fragment, a Δ table is computed from shared
   `metrics{}` keys (value, value, delta, %), and `metric-cards` with a
   `delta_metric` show an inline ▲/▼.
+- **File preview.** A `table` `type:"file"` cell whose value matches a
+  `files[].path` on the same section is a clickable token; it opens a modal
+  rendering the producer-embedded excerpt (markdown sanitized via
+  marked+DOMPurify, otherwise an escaped monospace `<pre>` with the lang and
+  optional start-line label). "Open full file" is active only when served;
+  inert under `file://`.
 
 `app.js` is a single hand-written classic script — no bundler, no npm. The
 renderer is a `switch(section.type)` dispatch table.
@@ -258,7 +294,7 @@ renderer is a `switch(section.type)` dispatch table.
 ## dev-report-build
 
 ```
-dev-report-build <release-id> <fragments-dir> <reports-root> [--vcs-ref REF] [--label TEXT] [--no-embed]
+dev-report-build <release-id> <fragments-dir> <reports-root> [--vcs-ref REF] [--label TEXT] [--commits N] [--no-embed] [--design FILE]
 ```
 
 | Arg              | Meaning |
@@ -267,16 +303,23 @@ dev-report-build <release-id> <fragments-dir> <reports-root> [--vcs-ref REF] [--
 | `<fragments-dir>`| Staging dir of `*.json` fragments. The script reads each fragment's `category` and lays it out under `data/<category>/`. |
 | `<reports-root>` | The `reports/` dir to write into and update. |
 | `--vcs-ref`      | Optional tag/branch recorded in the manifests. |
-| `--label`        | Optional human label; defaults to `<release-id>`. |
+| `--label`        | Optional human label; defaults to `<release-id>`. Recorded, but not the rendered title. |
+| `--commits N`    | Optional integer commit count recorded as `commit_count` in the manifest and `releases.json`; the renderer formats the title `YYYY-MM-DD Release: N commits`. Omitted ⇒ `commit_count: null` and the `: N commits` clause is dropped. |
 | `--no-embed`     | Skip inlining data into `index.html` (served mode, large reports). |
+| `--design FILE`  | Optional retheme. Extracts every CSS `:root{…}` block from `FILE` (fenced ` ```css ` or raw), concatenates them, and injects one `<style id="design-override">` immediately before `</head>` and after the app.css `<link>`, so the cascade overrides the theme variables. Works with and without `--no-embed`. A file with no `:root` block prints a non-fatal stderr notice and the default theme is used; it adds no exit code. |
 
 Behavior: validate every fragment (same logic as `validate_fragments.py`);
 build into a temp dir and move into place only on success (atomic); auto-capture
 short SHA (best-effort — warn, do not fail, if not a git repo) and UTC
 timestamp; lay fragments out by `category`; compute `rollup`; write
-`manifest.json`; copy `assets/*`; inline data unless `--no-embed`; upsert the
-release into `releases.json` and rewrite atomically. Python 3, standard library
-only.
+`manifest.json`; copy `assets/*`; inline data unless `--no-embed`; inject the
+design override when `--design` resolves a `:root` block; upsert the release
+into `releases.json` and rewrite atomically. Python 3, standard library only.
+No LLM: `--design` only greps `:root{…}` blocks. Deriving a theme from a prose
+`DESIGN.md` is the Skill's `references/design-to-theme.md` role; only these
+`:root` vars are overridable (defined in `assets/app.css`): `--bg`, `--panel`,
+`--panel-2`, `--border`, `--text`, `--muted`, `--accent`, `--ok`, `--info`,
+`--warn`, `--error`.
 
 Exit codes:
 

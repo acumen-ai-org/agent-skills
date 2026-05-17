@@ -55,6 +55,9 @@ esac
 mailmap_path="$repo/.mailmap"
 [ -f "$mailmap_path" ] || mailmap_path=""
 
+gitmodules_path="$repo/.gitmodules"
+[ -f "$gitmodules_path" ] || gitmodules_path=""
+
 vibe_definition_path=""
 vibe_search_paths=(
   "docs/vibe-coder.md"
@@ -82,6 +85,7 @@ fi
 
 REPO="$repo" RAW_LOG="$raw_log_path" STRATEGY="$pr_unit_strategy" \
 SQUASH_PATTERN="$squash_generic_pattern" MAILMAP="$mailmap_path" \
+GITMODULES="$gitmodules_path" \
 VIBE_PATH="$vibe_definition_path" AZ_AVAILABLE="$az_available" \
 RS="$record_separator" FS="$field_separator" \
 python3 - "$out_dir/author-activity.json" <<'PYTHON'
@@ -124,6 +128,38 @@ def canonical_author(name, email):
     if key in mailmap:
         return mailmap[key]
     return name.strip() if name else email
+
+
+submodule_paths = []
+gitmodules_path = os.environ["GITMODULES"]
+if gitmodules_path:
+    with open(gitmodules_path, encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            line = line.strip()
+            if line.startswith("path") and "=" in line:
+                value = line.split("=", 1)[1].strip().strip("/")
+                if value:
+                    submodule_paths.append(value)
+submodule_paths.sort(key=len, reverse=True)
+
+
+def module_of(path):
+    for submodule in submodule_paths:
+        if path == submodule or path.startswith(submodule + "/"):
+            return submodule
+    slash = path.find("/")
+    if slash == -1:
+        return "(root)"
+    return path[:slash]
+
+
+def modules_for(paths):
+    seen = []
+    for path in paths:
+        module = module_of(path)
+        if module not in seen:
+            seen.append(module)
+    return sorted(seen)
 
 
 def numstat_for(sha):
@@ -275,6 +311,7 @@ def parse_record(record):
         "body": body_text,
         "work_items": work_item_records,
         "changed_paths": [row["path"] for row in rows],
+        "modules": modules_for([row["path"] for row in rows]),
         "numstat": rows,
         "static_pattern_hint": static_pattern_hint(rows),
     }

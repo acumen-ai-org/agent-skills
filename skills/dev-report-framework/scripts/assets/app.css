@@ -316,3 +316,140 @@ dl.kv dd { margin: 0; }
   margin-top: 80px;
   text-align: center;
 }
+
+.view-cols {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+}
+
+.view-col {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.view-col-head {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+  margin-bottom: 18px;
+}
+
+.section-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.section-tab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  background: var(--panel-2);
+}
+
+.section-tab:hover { border-color: var(--accent); }
+.section-tab.active { border-color: var(--accent); color: var(--accent); }
+
+.row-toggle {
+  display: inline-block;
+  width: 14px;
+  margin-right: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  user-select: none;
+}
+
+.file-token {
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+
+.file-token:hover { text-decoration-style: solid; }
+
+.image-body {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: min(900px, 90vw);
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.modal-head button {
+  padding: 2px 9px;
+}
+
+.modal-body {
+  padding: 16px;
+  overflow: auto;
+}
+
+.file-pre {
+  background: var(--panel-2);
+  padding: 14px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 12px;
+  margin: 0;
+  white-space: pre;
+}
+
+.modal-foot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.file-open {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.file-open.inert {
+  color: var(--muted);
+  cursor: not-allowed;
+}

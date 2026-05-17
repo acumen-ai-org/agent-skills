@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-repo=${DRP_REPO:-.}
+repo=${DEV_RELEASE_REPO:-.}
 id=${1:?usage: run_tool.sh <id> <command> <out_dir> [report_file] [timeoutSeconds]}
 command_str=${2:?usage: run_tool.sh <id> <command> <out_dir> [report_file] [timeoutSeconds]}
 out_dir=${3:?usage: run_tool.sh <id> <command> <out_dir> [report_file] [timeoutSeconds]}

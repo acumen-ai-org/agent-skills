@@ -1,10 +1,11 @@
 # dev-process.json — configuration contract
 
 The release process is driven by `dev-process.json` at the consuming
-repository root. This file is the field-by-field contract. The JSON Schema is
-the bundled file [`dev-process.schema.json`](dev-process.schema.json) next to
-this document; `python3 scripts/dev_process.py schema` prints it, and `init`
-copies it into the consuming repo.
+repository root. This file is the field-by-field contract. The JSON Schema
+ships bundled with the plugin (the file
+[`dev-process.schema.json`](dev-process.schema.json) next to this document);
+`python3 scripts/dev_process.py schema` prints it on demand. Validation
+(`check`/`emit`) always uses the bundled schema.
 
 The skills perform only part of the release process and **inform** about the
 external steps (merge freeze, notify, push, production release, merge-back).
@@ -27,9 +28,8 @@ This config covers the parts the skills act on plus the report/blob behavior.
 ## Bootstrap & validation
 
 - `python3 scripts/dev_process.py init` — if `dev-process.json` is absent,
-  writes a documented default plus `dev-process.schema.json`, then validates.
-  It never auto-commits; the operator reviews and commits both files. If the
-  file exists, `init` only validates.
+  writes a documented default, then validates. It never auto-commits; the
+  operator reviews and commits it. If the file exists, `init` only validates.
 - `python3 scripts/dev_process.py check` — validate only. Exit `0` valid,
   `2` invalid (each error printed with its JSON path), `1` bad usage.
 - `python3 scripts/dev_process.py emit` — validate, then print the config with
@@ -115,6 +115,7 @@ the phase-1/phase-2 seam.
 | `mediaExtensions` | `.png,.jpg,...` | Extensions treated as media for `except-media`. |
 | `persistPath` | `release-reports` | In-repo destination for kept reports (distinct from the gitignored `outputDir`). |
 | `aggregate.kind` / `aggregate.run` | `command` / `null` | Optional report aggregator. `null` → C3 is skipped. |
+| `designDoc` | `null` | Optional path (relative to repo root) to a DESIGN.md whose contents shape the generated report's look-and-feel. `null`/absent → default theme. |
 
 ### releaseNotes
 

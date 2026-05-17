@@ -45,10 +45,22 @@ is that question, and it is the fragment's `category` field. The set is fixed
 | `schema`       | Did the API/data contracts change, and are the changes breaking?     | `dev-analysis-schema` |
 | `contracts`    | Do providers still honor the contracts their consumers depend on?    | `dev-test-contracts` |
 | `mission`      | Does this change serve the product's stated mission?                 | `dev-analysis-mission` |
+| `test-coverage`| What is unit-test coverage?                                          | none — empty slot, see below |
+| `test-reports` | What do the end-to-end test runs say?                                | none — empty slot, see below |
+| `overview`     | What is the release at a glance?                                     | `dev-report-overview` |
 
-Two `dev-report-` Skills sit above the categories: `dev-report-framework`
-(assembles fragments into a standalone HTML report folder) and
-`dev-report-release-diff` (a multi-perspective `git diff` → Slidev deck).
+`test-coverage` and `test-reports` are **empty slots**: no Skill ships a
+producer. The consuming repo wires its own coverage/e2e tool to these
+categories via a `dev-process.json` `analysis`/`review` entry. The framework's
+left-nav shows them so the structure is present even before the repo fills
+them; no placeholder Skill exists (the repo's no-scaffolding rule).
+
+Three `dev-report-` Skills sit above the categories: `dev-report-framework`
+(assembles fragments into a standalone HTML report folder),
+`dev-report-release-diff` (a multi-perspective `git diff` → Slidev deck), and
+`dev-report-overview` (runs last; emits the pinned `overview` fragment — a
+content-to-image infographic + scope bullets — that the framework shows as the
+default landing page).
 
 Adding a category is a deliberate change: it touches the fragment-schema enum
 and the report framework's navigation. Do not let a `dev-analysis-` Skill

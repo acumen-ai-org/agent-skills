@@ -1,6 +1,6 @@
 ---
 name: dev-analysis-dependencies
-description: Scans a project's declared and resolved dependencies for known vulnerabilities, generates an SBOM, and inventories the Rust unsafe surface, then emits one dev-report-fragment/v1 fragment in the dependencies category. Runs OWASP Dependency-Check, Trivy, Syft, and Grype via pinned Docker images and cargo-audit / cargo-geiger via the Rust toolchain, deduplicates findings across scanners by (package, CVE), and sets status error / exit 4 on any critical finding. Use when assessing supply-chain risk for a release, building a dependency report, or checking a repo for vulnerable or unsafe dependencies.
+description: Scans a project's declared and resolved dependencies for known vulnerabilities, generates an SBOM, and inventories the Rust unsafe surface, then emits one dev-report-fragment/v1 fragment in the dependencies category. Runs OWASP Dependency-Check, Trivy, Syft, and Grype via pinned Docker images and cargo-audit / cargo-geiger via the Rust toolchain, deduplicates findings across scanners by (package, CVE), groups the result per library (level-1 rows are libraries; their CVEs are expandable children), and sets status error / exit 4 on any critical finding. Use when assessing supply-chain risk for a release, building a dependency report, or checking a repo for vulnerable or unsafe dependencies.
 ---
 
 # dev-analysis-dependencies
@@ -93,18 +93,22 @@ python3 "scripts/to-fragment.py" \
 Pass every raw file from step 1 as positional args before the output path.
 `to-fragment.py` auto-detects each raw format (Dependency-Check, Trivy, Grype,
 cargo-audit, cargo-geiger, Syft SBOM), deduplicates findings across
-Dependency-Check / Trivy / Grype by `(package, CVE)`, writes
-`metrics{critical, high, medium, low, packages}` and the factual `body[]`, and
-returns exit `4` when any critical finding exists (fragment still written,
-`status: error`).
+Dependency-Check / Trivy / Grype by `(package, CVE)`, groups the deduplicated
+findings into one per-library `table` (level-1 rows are libraries — library,
+installed version(s), highest severity, vuln count, ecosystem — with each
+library's individual CVEs as expandable `children`), writes
+`metrics{critical, high, medium, low, packages}` (`packages` counts distinct
+libraries plus any SBOM/geiger components), and returns exit `4` when any
+critical finding exists (fragment still written, `status: error`).
 
 ### 3. Synthesize
 
 Apply [`references/supply-chain-synthesis.md`](references/supply-chain-synthesis.md)
 to the fragment from step 2: it rewrites `summary` and appends the triage,
-license-risk, and deduplication narrative sections. Run it inline, or delegate
-it to an isolated agent passing the role file as instructions and the fragment
-as input; merge the result back into the fragment JSON.
+license-risk, and deduplication narrative sections, walking the per-library
+table most-severe library first. Run it inline, or delegate it to an isolated
+agent passing the role file as instructions and the fragment as input; merge
+the result back into the fragment JSON.
 
 ### 4. Validate
 
@@ -122,16 +126,18 @@ Mirrors render→decode. Stage one (`run-<tool>.sh`) runs the tool and writes
 `<out_dir>/<id>.raw.<ext>` (or `<id>.sbom.raw.json` / `<id>.<tool>.raw.json`
 when a runner has a tool-specific name), printing `TOOL <name> exit=<n>`.
 Stage two (`to-fragment.py`) reads any number of raw files and emits exactly
-one fragment, `category: dependencies`. The script writes only factual
+one fragment, `category: dependencies`, with the deduplicated findings grouped
+per library (library rows, CVE children). The script writes only factual
 `metrics{}` and `body[]`; the synthesis role adds `summary` + narrative.
 Scripts never call an LLM.
 
 ## Synthesis
 
-`references/supply-chain-synthesis.md` is the only role: severity triage,
-license-risk narrative, and an explicit note that findings were deduplicated
-across Dependency-Check / Trivy / Grype by `(package, CVE)`. It never
-recomputes `metrics{}` — those are the script's ground truth.
+`references/supply-chain-synthesis.md` is the only role: per-library severity
+triage (most-severe library first), license-risk narrative, and an explicit
+note that findings were deduplicated across Dependency-Check / Trivy / Grype by
+`(package, CVE)`. It never recomputes `metrics{}` — those are the script's
+ground truth.
 
 ## Outputs
 
@@ -145,10 +151,12 @@ recomputes `metrics{}` — those are the script's ground truth.
 └── <id>.fragment.json         # the dependencies fragment (validated)
 ```
 
-`metrics{}`: `critical`, `high`, `medium`, `low`, `packages`, plus
+`metrics{}`: `critical`, `high`, `medium`, `low`, `packages` (distinct
+vulnerable libraries plus any SBOM/geiger components), plus
 `unsafe_expressions` when Rust was scanned. `body[]`: a `metric-cards` severity
-panel, the deduplicated findings `table`, an optional cargo-geiger unsafe
-`table`, then the synthesis role's narrative.
+panel, the per-library findings `table` (level-1 rows = libraries, `children` =
+their CVEs), an optional cargo-geiger unsafe `table`, then the synthesis role's
+narrative.
 
 ## Failure modes
 
@@ -156,8 +164,8 @@ panel, the deduplicated findings `table`, an optional cargo-geiger unsafe
   pinned `docker run` line, exits `3`. Never auto-installed.
 - **Tool ran, output unparseable** → runner exits `2`, raw kept; `to-fragment.py`
   skips that file and uses the rest, or exits `2` if none parsed.
-- **Same CVE from two scanners** → counted once; the "Reported by" column lists
-  every scanner that flagged it.
+- **Same CVE from two scanners** → counted once; the CVE appears as a single
+  child row under its library, listing every scanner that flagged it.
 - **A critical finding exists** → fragment written, `status: error`,
   `to-fragment.py` exits `4`. This is a successful analysis of a failing
   project, not a runner error — distinct from exit `2`.

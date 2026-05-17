@@ -6,10 +6,12 @@ Usage: to-fragment.py <id> <raw...> <out_fragment.json>
 Accepts one or more raw files produced by the run-*.sh scanners (Dependency-
 Check JSON, Trivy JSON, Grype JSON, cargo-audit JSON, cargo-geiger JSON, Syft
 CycloneDX/SPDX JSON). Findings from Dependency-Check / Trivy / Grype are
-deduplicated by (package, CVE) so an overlapping CVE is counted once. Emits the
-factual `metrics{critical,high,medium,low,packages}` and factual `body[]`; the
-Skill's references/supply-chain-synthesis.md role enriches `summary` and adds
-narrative `body[]`.
+deduplicated by (package, CVE) so an overlapping CVE is counted once, then
+grouped per library: the primary table's level-1 rows are libraries and each
+library's children are its individual CVE findings. Emits the factual
+`metrics{critical,high,medium,low,packages}` and factual `body[]`; the Skill's
+references/supply-chain-synthesis.md role enriches `summary` and adds narrative
+`body[]`.
 
 Exit codes:
   0  fragment written; status ok/warn (no critical findings)
@@ -66,14 +68,29 @@ def load_json(path):
         return None
 
 
+def make_finding(name, version, ecosystem, cve, severity, cvss, source, fixed):
+    return {
+        "package": name or "unknown",
+        "version": version or "",
+        "ecosystem": ecosystem or "unknown",
+        "cve": cve or "UNKNOWN",
+        "severity": severity,
+        "cvss": cvss,
+        "source": source,
+        "fixed": fixed or "",
+    }
+
+
 def parse_dependency_check(document):
     findings = []
     for dependency in document.get("dependencies", []):
-        package = dependency.get("fileName") or dependency.get("filePath") or "unknown"
+        name = dependency.get("fileName") or dependency.get("filePath") or "unknown"
+        version = ""
+        ecosystem = "unknown"
         for package_id in dependency.get("packages", []):
             identifier = package_id.get("id")
             if identifier:
-                package = identifier
+                name, version, ecosystem = split_purl(identifier, name)
                 break
         for vulnerability in dependency.get("vulnerabilities", []):
             cve = vulnerability.get("name") or "UNKNOWN"
@@ -84,38 +101,54 @@ def parse_dependency_check(document):
                 else None
             )
             findings.append(
-                {
-                    "package": package,
-                    "cve": cve,
-                    "severity": severity,
-                    "cvss": cvss,
-                    "source": "Dependency-Check",
-                }
+                make_finding(name, version, ecosystem, cve, severity, cvss,
+                             "Dependency-Check", "")
             )
     return findings
+
+
+def split_purl(identifier, fallback_name):
+    text = str(identifier)
+    ecosystem = "unknown"
+    if text.startswith("pkg:"):
+        text = text[len("pkg:"):]
+        if "/" in text:
+            ecosystem, text = text.split("/", 1)
+    name = text
+    version = ""
+    if "@" in name:
+        name, version = name.rsplit("@", 1)
+        version = version.split("?", 1)[0]
+    if not name:
+        name = fallback_name
+    return name, version, ecosystem
 
 
 def parse_trivy(document):
     findings = []
     for result in document.get("Results", []):
+        ecosystem = (
+            result.get("Type") or result.get("Class") or "unknown"
+        )
         for vulnerability in result.get("Vulnerabilities", []) or []:
-            package = vulnerability.get("PkgName") or "unknown"
-            installed = vulnerability.get("InstalledVersion")
-            if installed:
-                package = f"{package}@{installed}"
+            name = vulnerability.get("PkgName") or "unknown"
+            version = vulnerability.get("InstalledVersion") or ""
             cvss_score = None
             for vendor in (vulnerability.get("CVSS") or {}).values():
                 cvss_score = vendor.get("V3Score") or vendor.get("V2Score")
                 if cvss_score is not None:
                     break
             findings.append(
-                {
-                    "package": package,
-                    "cve": vulnerability.get("VulnerabilityID") or "UNKNOWN",
-                    "severity": normalize_severity(vulnerability.get("Severity")),
-                    "cvss": cvss_score,
-                    "source": "Trivy",
-                }
+                make_finding(
+                    name,
+                    version,
+                    ecosystem,
+                    vulnerability.get("VulnerabilityID") or "UNKNOWN",
+                    normalize_severity(vulnerability.get("Severity")),
+                    cvss_score,
+                    "Trivy",
+                    vulnerability.get("FixedVersion") or "",
+                )
             )
     return findings
 
@@ -124,24 +157,31 @@ def parse_grype(document):
     findings = []
     for match in document.get("matches", []):
         artifact = match.get("artifact", {})
-        package = artifact.get("name") or "unknown"
-        version = artifact.get("version")
-        if version:
-            package = f"{package}@{version}"
+        name = artifact.get("name") or "unknown"
+        version = artifact.get("version") or ""
+        ecosystem = artifact.get("type") or "unknown"
         vulnerability = match.get("vulnerability", {})
         cvss_score = None
         for entry in vulnerability.get("cvss", []) or []:
             cvss_score = entry.get("metrics", {}).get("baseScore")
             if cvss_score is not None:
                 break
+        fixed = ""
+        fix = vulnerability.get("fix") or {}
+        versions = fix.get("versions") or []
+        if versions:
+            fixed = ", ".join(str(item) for item in versions)
         findings.append(
-            {
-                "package": package,
-                "cve": vulnerability.get("id") or "UNKNOWN",
-                "severity": normalize_severity(vulnerability.get("severity")),
-                "cvss": cvss_score,
-                "source": "Grype",
-            }
+            make_finding(
+                name,
+                version,
+                ecosystem,
+                vulnerability.get("id") or "UNKNOWN",
+                normalize_severity(vulnerability.get("severity")),
+                cvss_score,
+                "Grype",
+                fixed,
+            )
         )
     return findings
 
@@ -153,19 +193,22 @@ def parse_cargo_audit(document):
         advisory = entry.get("advisory", {})
         package = entry.get("package", {})
         name = package.get("name") or "unknown"
-        version = package.get("version")
-        if version:
-            name = f"{name}@{version}"
+        version = package.get("version") or ""
         cvss = advisory.get("cvss")
         severity = severity_from_cvss(cvss) or "high"
+        patched = entry.get("versions", {}).get("patched") or []
+        fixed = ", ".join(str(item) for item in patched)
         findings.append(
-            {
-                "package": name,
-                "cve": advisory.get("id") or "RUSTSEC-UNKNOWN",
-                "severity": severity,
-                "cvss": cvss,
-                "source": "cargo-audit",
-            }
+            make_finding(
+                name,
+                version,
+                "cargo",
+                advisory.get("id") or "RUSTSEC-UNKNOWN",
+                severity,
+                cvss,
+                "cargo-audit",
+                fixed,
+            )
         )
     return findings
 
@@ -198,18 +241,15 @@ def parse_sbom(document):
     for component in document.get("components", []) or []:
         name = component.get("name")
         if name:
-            version = component.get("version")
-            components.append(f"{name}@{version}" if version else name)
+            components.append(name)
     for artifact in document.get("artifacts", []) or []:
         name = artifact.get("name")
         if name:
-            version = artifact.get("version")
-            components.append(f"{name}@{version}" if version else name)
+            components.append(name)
     for package in document.get("packages", []) or []:
         name = package.get("name")
         if name and isinstance(package, dict) and "SPDXID" in package:
-            version = package.get("versionInfo")
-            components.append(f"{name}@{version}" if version else name)
+            components.append(name)
     return components
 
 
@@ -237,7 +277,7 @@ def classify(document):
 def dedupe(findings):
     by_key = {}
     for finding in findings:
-        key = (finding["package"], finding["cve"])
+        key = (finding["package"], finding["version"], finding["cve"])
         existing = by_key.get(key)
         if existing is None:
             by_key[key] = dict(finding)
@@ -250,7 +290,45 @@ def dedupe(findings):
                 existing["severity"] = finding["severity"]
             if existing.get("cvss") is None and finding.get("cvss") is not None:
                 existing["cvss"] = finding["cvss"]
+            if not existing.get("fixed") and finding.get("fixed"):
+                existing["fixed"] = finding["fixed"]
+            if existing.get("ecosystem") in ("", "unknown") and finding.get("ecosystem"):
+                existing["ecosystem"] = finding["ecosystem"]
     return list(by_key.values())
+
+
+def group_by_library(deduped):
+    libraries = {}
+    for finding in deduped:
+        key = (finding["package"], finding["ecosystem"])
+        library = libraries.get(key)
+        if library is None:
+            library = {
+                "package": finding["package"],
+                "ecosystem": finding["ecosystem"],
+                "versions": set(),
+                "findings": [],
+            }
+            libraries[key] = library
+        if finding["version"]:
+            library["versions"].add(finding["version"])
+        library["findings"].append(finding)
+    ordered_libraries = []
+    for library in libraries.values():
+        worst = min(
+            SEVERITY_ORDER.index(item["severity"]) for item in library["findings"]
+        )
+        library["worst_index"] = worst
+        library["worst_severity"] = SEVERITY_ORDER[worst]
+        ordered_libraries.append(library)
+    ordered_libraries.sort(
+        key=lambda lib: (
+            lib["worst_index"],
+            -len(lib["findings"]),
+            lib["package"],
+        )
+    )
+    return ordered_libraries
 
 
 def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_total):
@@ -258,7 +336,9 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
     for finding in deduped:
         counts[finding["severity"]] += 1
 
-    package_set = {finding["package"] for finding in deduped}
+    libraries = group_by_library(deduped)
+
+    package_set = {library["package"] for library in libraries}
     package_set.update(sbom_components)
     package_set.update(row["package"] for row in geiger_rows)
 
@@ -288,7 +368,8 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
         f"{total} unique vulnerable dependency findings "
         f"({counts['critical']} critical, {counts['high']} high, "
         f"{counts['medium']} medium, {counts['low']} low) "
-        f"across {metrics['packages']} packages."
+        f"across {len(libraries)} vulnerable libraries "
+        f"({metrics['packages']} packages scanned)."
     )
 
     body = [
@@ -305,35 +386,46 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
         }
     ]
 
-    if deduped:
-        ordered = sorted(
-            deduped,
-            key=lambda finding: (
-                SEVERITY_ORDER.index(finding["severity"]),
-                finding["package"],
-            ),
-        )
+    if libraries:
         body.append(
             {
                 "type": "table",
-                "title": "Vulnerable dependencies (deduplicated by package + CVE)",
+                "title": "Vulnerable libraries (grouped; expand for CVEs)",
                 "filterable": True,
                 "columns": [
-                    {"key": "package", "label": "Package", "type": "string", "sortable": True},
-                    {"key": "cve", "label": "CVE / advisory", "type": "string", "sortable": True},
-                    {"key": "severity", "label": "Severity", "type": "string", "sortable": True},
-                    {"key": "cvss", "label": "CVSS", "type": "number", "sortable": True},
-                    {"key": "sources", "label": "Reported by", "type": "string", "sortable": True},
+                    {"key": "library", "label": "Library", "type": "string", "sortable": True},
+                    {"key": "versions", "label": "Installed version(s)", "type": "string", "sortable": True},
+                    {"key": "severity", "label": "Highest severity", "type": "string", "sortable": True},
+                    {"key": "count", "label": "Vuln count", "type": "number", "sortable": True},
+                    {"key": "ecosystem", "label": "Ecosystem", "type": "string", "sortable": True},
                 ],
                 "rows": [
                     {
-                        "package": finding["package"],
-                        "cve": finding["cve"],
-                        "severity": finding["severity"],
-                        "cvss": finding.get("cvss") if isinstance(finding.get("cvss"), (int, float)) else 0,
-                        "sources": ", ".join(sorted(finding["sources"])),
+                        "library": library["package"],
+                        "versions": ", ".join(sorted(library["versions"])) or "—",
+                        "severity": library["worst_severity"],
+                        "count": len(library["findings"]),
+                        "ecosystem": library["ecosystem"],
+                        "children": [
+                            {
+                                "library": finding["cve"],
+                                "versions": finding["fixed"] or "—",
+                                "severity": finding["severity"],
+                                "count": finding.get("cvss")
+                                if isinstance(finding.get("cvss"), (int, float))
+                                else 0,
+                                "ecosystem": ", ".join(sorted(finding["sources"])),
+                            }
+                            for finding in sorted(
+                                library["findings"],
+                                key=lambda item: (
+                                    SEVERITY_ORDER.index(item["severity"]),
+                                    item["cve"],
+                                ),
+                            )
+                        ],
                     }
-                    for finding in ordered
+                    for library in libraries
                 ],
                 "defaultSort": {"key": "severity", "dir": "asc"},
             }

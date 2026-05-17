@@ -80,8 +80,31 @@ def author_for(repo_path, older, newer):
     return counts
 
 
+def extension_of(path):
+    dot = path.rfind(".")
+    slash = path.rfind("/")
+    if dot > slash and dot != -1:
+        return path[dot + 1:]
+    return "(none)"
+
+
+def folder_of(path):
+    slash = path.rfind("/")
+    if slash == -1:
+        return "(root)"
+    return path[:slash]
+
+
+def file_of(path):
+    slash = path.rfind("/")
+    if slash == -1:
+        return path
+    return path[slash + 1:]
+
+
 pairs = []
 numstat_rows = collections.defaultdict(list)
+extension_tree = {}
 with open(os.environ["NUMSTAT"], encoding="utf-8") as handle:
     for raw in handle:
         raw = raw.rstrip("\n")
@@ -92,6 +115,18 @@ with open(os.environ["NUMSTAT"], encoding="utf-8") as handle:
             continue
         pair_label, added, removed, path = parts[0], parts[1], parts[2], parts[3]
         numstat_rows[pair_label].append((added, removed, path))
+        extension = extension_of(path)
+        folder = folder_of(path)
+        name = file_of(path)
+        ext_node = extension_tree.setdefault(
+            extension, {"files_changed": 0, "folders": {}}
+        )
+        ext_node["files_changed"] += 1
+        folder_node = ext_node["folders"].setdefault(
+            folder, {"files_changed": 0, "files": {}}
+        )
+        folder_node["files_changed"] += 1
+        folder_node["files"][name] = folder_node["files"].get(name, 0) + 1
 
 for index in range(len(refs) - 1):
     older = refs[index]
@@ -107,13 +142,7 @@ for index in range(len(refs) - 1):
             added_total += int(added)
         if removed.isdigit():
             removed_total += int(removed)
-        dot = path.rfind(".")
-        slash = path.rfind("/")
-        if dot > slash and dot != -1:
-            extension = path[dot + 1:]
-        else:
-            extension = "(none)"
-        by_extension[extension] += 1
+        by_extension[extension_of(path)] += 1
     authors = author_for(repo, older, newer)
     pairs.append(
         {
@@ -128,8 +157,43 @@ for index in range(len(refs) - 1):
         }
     )
 
+extension_tree_sorted = []
+for extension, ext_node in sorted(
+    extension_tree.items(), key=lambda kv: (-kv[1]["files_changed"], kv[0])
+):
+    folders_sorted = []
+    for folder, folder_node in sorted(
+        ext_node["folders"].items(),
+        key=lambda kv: (-kv[1]["files_changed"], kv[0]),
+    ):
+        files_sorted = [
+            {"file": name, "files_changed": count}
+            for name, count in sorted(
+                folder_node["files"].items(), key=lambda kv: (-kv[1], kv[0])
+            )
+        ]
+        folders_sorted.append(
+            {
+                "folder": folder,
+                "files_changed": folder_node["files_changed"],
+                "files": files_sorted,
+            }
+        )
+    extension_tree_sorted.append(
+        {
+            "extension": extension,
+            "files_changed": ext_node["files_changed"],
+            "folders": folders_sorted,
+        }
+    )
+
 with open(out_path, "w", encoding="utf-8") as handle:
-    json.dump({"refs": refs, "pairs": pairs}, handle, indent=2, sort_keys=True)
+    json.dump(
+        {"refs": refs, "pairs": pairs, "extension_tree": extension_tree_sorted},
+        handle,
+        indent=2,
+        sort_keys=True,
+    )
 PYTHON
 
 echo "TOOL collect-history exit=0"

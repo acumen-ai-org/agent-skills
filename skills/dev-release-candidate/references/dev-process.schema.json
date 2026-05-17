@@ -51,7 +51,8 @@
         "persistInRepo": { "enum": ["all", "none", "except-media"] },
         "mediaExtensions": { "type": "array", "items": { "type": "string" } },
         "persistPath": { "type": "string" },
-        "aggregate": { "$ref": "#/$defs/optionalStep" }
+        "aggregate": { "$ref": "#/$defs/optionalStep" },
+        "designDoc": { "type": ["string", "null"] }
       }
     },
     "releaseNotes": {

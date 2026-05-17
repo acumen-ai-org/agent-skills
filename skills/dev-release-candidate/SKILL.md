@@ -24,8 +24,9 @@ asks for the full process, describe them from
 Behavior is read from `dev-process.json` at the consuming repo root. The
 field-by-field contract is
 [`references/dev-process-config.md`](references/dev-process-config.md).
-`scripts/dev_process.py init` writes a documented default plus
-`dev-process.schema.json` if the file is absent; it never auto-commits.
+`scripts/dev_process.py init` writes a documented default `dev-process.json`
+if the file is absent; it never auto-commits. The JSON Schema ships bundled
+with the plugin; `python3 scripts/dev_process.py schema` prints it on demand.
 
 Ensure the consuming repo gitignores `reports.outputDir` (default
 `.agents/release-reports`) so report artifacts never get swept into a stray
@@ -63,7 +64,7 @@ bash "$S/scope.sh"
 ```
 
 If `init` wrote a new `dev-process.json`, tell the operator to review and
-commit it (and `dev-process.schema.json`) before a real release. The release
+commit it before a real release. The release
 candidate branch is, in practice, just `origin/main` at branch time.
 `release_candidate_branch.sh` exit 2 → uncommitted tracked changes or missing
 `origin/main`. `scope.sh` writes `scope.json`/`commits.txt`/`changed-files.txt`;

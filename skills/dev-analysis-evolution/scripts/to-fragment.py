@@ -101,12 +101,40 @@ def build_evolution(out_dir):
         "extensions_touched": len(extension_totals),
     }
 
-    extension_rows = [
-        {"extension": extension, "files_changed": count}
-        for extension, count in sorted(
-            extension_totals.items(), key=lambda kv: (-kv[1], kv[0])
+    extension_tree = history.get("extension_tree", [])
+    extension_tree_rows = []
+    for ext_node in extension_tree:
+        folder_rows = []
+        for folder_node in ext_node.get("folders", []):
+            file_rows = [
+                {
+                    "name": file_node.get("file", ""),
+                    "files_changed": int(file_node.get("files_changed", 0)),
+                }
+                for file_node in folder_node.get("files", [])
+            ]
+            folder_rows.append(
+                {
+                    "name": folder_node.get("folder", ""),
+                    "files_changed": int(folder_node.get("files_changed", 0)),
+                    "children": file_rows,
+                }
+            )
+        extension_tree_rows.append(
+            {
+                "name": ext_node.get("extension", ""),
+                "files_changed": int(ext_node.get("files_changed", 0)),
+                "children": folder_rows,
+            }
         )
-    ]
+
+    if not extension_tree_rows:
+        extension_tree_rows = [
+            {"name": extension, "files_changed": count}
+            for extension, count in sorted(
+                extension_totals.items(), key=lambda kv: (-kv[1], kv[0])
+            )
+        ]
 
     pair_rows = [
         {
@@ -119,8 +147,10 @@ def build_evolution(out_dir):
     ]
 
     treemap_children = [
-        {"name": row["extension"], "value": row["files_changed"]}
-        for row in extension_rows
+        {"name": extension, "value": count}
+        for extension, count in sorted(
+            extension_totals.items(), key=lambda kv: (-kv[1], kv[0])
+        )
     ]
 
     body = [
@@ -134,18 +164,20 @@ def build_evolution(out_dir):
         },
         {
             "type": "table",
-            "title": "Files changed by extension",
+            "title": "Files changed by extension → folder → file",
+            "view": "release",
             "filterable": True,
             "columns": [
-                {"key": "extension", "label": "Extension", "type": "string", "sortable": True},
+                {"key": "name", "label": "Extension / folder / file", "type": "string", "sortable": True},
                 {"key": "files_changed", "label": "Files changed", "type": "number", "sortable": True},
             ],
-            "rows": extension_rows,
+            "rows": extension_tree_rows,
             "defaultSort": {"key": "files_changed", "dir": "desc"},
         },
         {
             "type": "table",
             "title": "Per-release-pair churn",
+            "view": "delta",
             "columns": [
                 {"key": "pair", "label": "Release pair", "type": "string", "sortable": True},
                 {"key": "files_changed", "label": "Files changed", "type": "number", "sortable": True},
@@ -157,6 +189,7 @@ def build_evolution(out_dir):
         {
             "type": "treemap",
             "title": "Change concentration by extension",
+            "view": "release",
             "root": {"name": "changed files", "children": treemap_children}
             if treemap_children
             else {"name": "changed files", "value": 0},
@@ -169,6 +202,7 @@ def build_evolution(out_dir):
             {
                 "type": "table",
                 "title": "code-maat churn",
+                "view": "delta",
                 "filterable": True,
                 "columns": [
                     {
@@ -269,16 +303,21 @@ def build_author_activity(out_dir):
             for item in work_items
             if isinstance(item, dict) and item.get("id") is not None
         )
-        detail_rows.append(
-            {
-                "pr": unit.get("pr") if unit.get("pr") is not None else 0,
-                "title": unit.get("title", ""),
-                "author": author,
-                "type": pr_type or "(unclassified)",
-                "pattern_use": pattern_use or "",
-                "work_items": work_item_ids,
-            }
-        )
+        modules = unit.get("modules") or []
+        if not modules:
+            modules = ["(none)"]
+        for module in modules:
+            detail_rows.append(
+                {
+                    "pr": unit.get("pr") if unit.get("pr") is not None else 0,
+                    "title": unit.get("title", ""),
+                    "author": author,
+                    "module": module,
+                    "type": pr_type or "(unclassified)",
+                    "pattern_use": pattern_use or "",
+                    "work_items": work_item_ids,
+                }
+            )
 
     vibe_definition = bundle.get("vibe_coder_definition")
     vibe_coders = 0
@@ -363,6 +402,7 @@ def build_author_activity(out_dir):
                 {"key": "pr", "label": "PR", "type": "number", "sortable": True},
                 {"key": "title", "label": "Title", "type": "string", "sortable": True},
                 {"key": "author", "label": "Author", "type": "string", "sortable": True},
+                {"key": "module", "label": "Module", "type": "string", "sortable": True},
                 {"key": "type", "label": "Type", "type": "string", "sortable": True},
                 {"key": "pattern_use", "label": "Pattern use", "type": "string", "sortable": True},
                 {"key": "work_items", "label": "Work items", "type": "string", "sortable": True},

@@ -1,6 +1,6 @@
 ---
 name: dev-report-framework
-description: Aggregates report fragments emitted by dev-analysis-* and dev-test-* Skills into one standalone, navigable HTML report folder per release, with a this-release-vs-previous split-screen. Validates fragments against the dev-report-fragment/v1 contract, lays them out by category, embeds everything into index.html so the folder opens via file:// with no server, and upserts a top-level releases.json for prev/next navigation. Use when building or refreshing a release report from collected analysis fragments, or when authoring a producer Skill that must emit conformant fragment JSON.
+description: Aggregates report fragments emitted by dev-analysis-* and dev-test-* Skills into one standalone, navigable HTML release-candidate report folder per release, with a permanent two-column This-release/Δ-vs-previous layout and a show/hide-previous-releases split-screen. Validates fragments against the dev-report-fragment/v1 contract, lays them out by category, embeds everything into index.html so the folder opens via file:// with no server, and upserts a top-level releases.json for prev/next navigation. Use when building or refreshing a release report from collected analysis fragments, or when authoring a producer Skill that must emit conformant fragment JSON.
 ---
 
 # dev-report-framework
@@ -20,7 +20,9 @@ the Skill. The scripts are run, not read:
 
 - [Inputs](#inputs)
 - [The fragment contract at a glance](#the-fragment-contract-at-a-glance)
+- [Layout and UI](#layout-and-ui)
 - [Procedure](#procedure)
+- [Apply design](#apply-design)
 - [Standalone viewing and the file:// caveat](#standalone-viewing-and-the-file-caveat)
 - [Authoring a producer](#authoring-a-producer)
 - [Outputs](#outputs)
@@ -38,8 +40,10 @@ are flags.
 | `<fragments-dir>`| yes      | Staging dir of `*.json` fragments. Each fragment's `category` decides its `data/<category>/` slot. |
 | `<reports-root>` | yes      | The `reports/` dir to create/update. |
 | `--vcs-ref REF`  | no       | Tag/branch recorded in the manifests; `null` if omitted. |
-| `--label TEXT`   | no       | Human label; defaults to `<release-id>`. |
+| `--label TEXT`   | no       | Human label; defaults to `<release-id>`. Recorded but not the displayed title (see [Layout and UI](#layout-and-ui)). |
+| `--commits N`    | no       | Records `commit_count` in the manifest; the renderer formats the title as `YYYY-MM-DD Release: N commits`. Omitted ⇒ the `: N commits` clause is dropped. |
 | `--no-embed`     | no       | Skip inlining data into `index.html` (served mode, very large reports). |
+| `--design FILE`  | no       | Retheme: extract every CSS `:root{...}` block from `FILE` and inject it as `<style id="design-override">` after the app.css link. No `:root` block → non-fatal stderr notice, default theme, exit 0. See [Apply design](#apply-design). |
 
 The build auto-captures `git rev-parse --short HEAD` (best-effort — a stderr
 warning and `git_sha:null` if not a git repo, never a failure) and a UTC
@@ -50,17 +54,53 @@ load from the network on first open (cached after).
 ## The fragment contract at a glance
 
 One JSON object per fragment. Required: `schema`
-(`"dev-report-fragment/v1"`), `id` (`[a-z0-9-]+`), `category` (fixed enum),
-`title`, `summary`, `status` (`ok|info|warn|error`), `producer`,
-`generated_at`, `body[]`. Optional: `severity` (0–100), `metrics{}` (flat
-`string→number`, the diff surface). Each `body[]` element is one of nine typed
-sections (`markdown`, `table`, `key-value`, `metric-cards`, `d3-graph`,
-`sankey`, `treemap`, `heatmap`, `mermaid`); an unknown type renders a visible
-placeholder, never a failure.
+(`"dev-report-fragment/v1"`), `id` (`[a-z0-9-]+`), `category` (fixed enum:
+`architecture | evolution | dependencies | quality | security | schema |
+contracts | mission | test-coverage | test-reports | overview`), `title`,
+`summary`, `status` (`ok|info|warn|error`), `producer`, `generated_at`,
+`body[]`. Optional: `severity` (0–100), `metrics{}` (flat `string→number`, the
+diff surface). Each `body[]` element is one of ten typed sections (`markdown`,
+`table`, `key-value`, `metric-cards`, `d3-graph`, `sankey`, `treemap`,
+`heatmap`, `mermaid`, `image`); an unknown type renders a visible placeholder,
+never a failure. A section MAY also carry `view` (`"release"|"delta"`,
+absent ⇒ `"release"`) and `files[]` (producer-embedded excerpts opened in a
+preview modal). A `table` row MAY carry `children[]` (expandable subrows) and
+a `table` column MAY be `type:"file"`.
 
 Full rules and one filled example per type:
 [`references/fragment-schema.md`](references/fragment-schema.md). Rendered
 behavior per type: [`references/section-types.md`](references/section-types.md).
+`fragment-schema.md` is the single source of truth.
+
+## Layout and UI
+
+The shell is titled **Release candidate report**.
+
+- **Title.** The displayed report title is `YYYY-MM-DD Release: N commits`,
+  where the date is the `release.created_at` date and `N` is `--commits`.
+  Without `--commits` it is just `YYYY-MM-DD Release`. The id, vcs-ref, label,
+  and SHA stay in the manifest but are not the rendered title.
+- **Two columns, always.** Every fragment renders as two fixed side-by-side
+  columns: left **This release** (all `view:"release"`/untagged sections in
+  order), right **Δ vs previous** (all `view:"delta"` sections in order). An
+  empty column shows `— nothing for this view —`. This is permanent and
+  distinct from the previous-releases toggle.
+- **Show/hide previous releases.** The sidebar button (labelled
+  `Show/hide previous releases`) toggles the second pane that loads the same
+  fragment `id` from a sibling release, with the metric Δ table and `◀ ▶`
+  release walk.
+- **Overview landing.** A `category:"overview"` fragment is pinned first in
+  the left nav and is the default page on load (lexically-first `id` if
+  several). It renders like any fragment.
+- **Per-section top menu.** Selecting a category with more than one fragment
+  shows a horizontal tab menu of that category's fragments inside the content
+  area; picking one shows just that fragment. The left nav still lists
+  categories → fragments.
+- **File preview.** A path token (a `table` `type:"file"` cell matching a
+  `files[].path`) opens a modal rendering the producer-embedded excerpt —
+  markdown via marked+DOMPurify, otherwise an escaped `<pre>`. "Open full
+  file" is inert under `file://`.
+- **Retheming.** `--design` is unchanged (see [Apply design](#apply-design)).
 
 ## Procedure
 
@@ -95,7 +135,7 @@ the identical check internally, so step 3 cannot produce a partial report.
 ```bash
 python3 "scripts/dev-report-build" \
   <release-id> <staging-dir> <reports-root> \
-  [--vcs-ref REF] [--label TEXT] [--no-embed]
+  [--vcs-ref REF] [--label TEXT] [--commits N] [--no-embed]
 ```
 
 The build validates again, lays fragments out by `category`, computes the
@@ -109,11 +149,44 @@ written (see [Exit codes](#exit-codes)).
 
 ### 4. Verify
 
-Open `reports/<release-id>/index.html` (double-click). Confirm: the left nav
-lists categories with status dots and a per-category roll-up; clicking a
-fragment renders it; at least one non-trivial body type (graph/table/heatmap)
-draws. If a second release exists, toggle **Split view** and confirm the right
-pane loads the previous release and the metric Δ table appears.
+Open `reports/<release-id>/index.html` (double-click). Confirm: the title
+reads `YYYY-MM-DD Release[: N commits]`; an `overview` fragment (if any) is
+pinned first and shown on load; the left nav lists categories with status dots
+and a per-category roll-up; every fragment shows the two **This release** /
+**Δ vs previous** columns; a multi-fragment category shows the per-section top
+menu; at least one non-trivial body type (graph/table/heatmap) draws. If a
+second release exists, toggle **Show/hide previous releases** and confirm the
+right pane loads the previous release and the metric Δ table appears.
+
+## Apply design
+
+Optional. Run only when a caller wants the report rethemed to a brand —
+`reports.designDoc` points at a `DESIGN.md`. The default dark theme is used
+otherwise; this step is skippable with no effect on the contract.
+
+1. **Ensure a CSS theme exists.** If `reports.designDoc` already contains a
+   fenced ` ```css ` block with a `:root { … }` rule, use the file as-is.
+   Otherwise run [`references/design-to-theme.md`](references/design-to-theme.md)
+   on the doc — it emits exactly one fenced ` ```css ` `:root{}` block — and
+   save that output to a file.
+2. **Build with it.**
+
+   ```bash
+   python3 "scripts/dev-report-build" \
+     <release-id> <staging-dir> <reports-root> --design <css-file>
+   ```
+
+`--design` extracts every `:root{…}` block from the file (fenced or raw),
+concatenates them, and injects one `<style id="design-override">…</style>`
+immediately before `</head>`, after the app.css `<link>`, so the cascade
+overrides the theme. Works identically with and without `--no-embed`. If the
+file has **no** `:root` block the build prints a non-fatal stderr notice,
+uses the default theme, and still exits `0` — `--design` adds no exit code.
+
+Only these `:root` custom properties are overridable (defined in
+`assets/app.css`): `--bg`, `--panel`, `--panel-2`, `--border`, `--text`,
+`--muted`, `--accent`, `--ok`, `--info`, `--warn`, `--error`. Layout, spacing,
+and fonts are the framework's and are not themeable.
 
 ## Standalone viewing and the file:// caveat
 
