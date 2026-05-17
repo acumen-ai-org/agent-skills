@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+"""Aggregate validated report fragments into a standalone HTML report folder.
+
+Usage:
+  dev-report-build <release-id> <fragments-dir> <reports-root>
+                   [--vcs-ref REF] [--label TEXT] [--no-embed]
+
+Builds reports/<release-id>/ atomically (temp dir -> move on success only),
+upserts reports/releases.json (newest-first by id), and embeds the manifest
+plus every fragment into index.html so the folder opens via file:// with no
+server. data/*.json is always written too.
+
+Exit codes:
+  0  report folder written; releases.json updated
+  1  bad arguments / usage
+  2  I/O failure (unreadable fragments-dir, unwritable reports-root)
+  3  one or more fragments failed contract validation (nothing written)
+"""
+import argparse
+import datetime
+import json
+import pathlib
+import shutil
+import subprocess
+import sys
+import tempfile
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from validate_fragments import validate_dir
+
+RELEASE_ID_ALLOWED = set(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._-"
+)
+DATA_ISLAND_PLACEHOLDER = (
+    '<script id="report-data" type="application/json">{}</script>'
+)
+CATEGORY_LABELS = {
+    "architecture": "Architecture",
+    "evolution": "Evolution",
+    "dependencies": "Dependencies",
+    "quality": "Quality",
+    "security": "Security",
+    "schema": "Schema",
+    "contracts": "Contracts",
+    "mission": "Mission",
+}
+
+
+def fail(code, message):
+    sys.stderr.write(message + "\n")
+    return code
+
+
+def capture_git_sha():
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip() or None
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        sys.stderr.write(
+            "WARN not a git repository (or git unavailable); git_sha=null\n"
+        )
+        return None
+
+
+def build_manifest(parsed, release):
+    grouped = {}
+    rollup = {"ok": 0, "info": 0, "warn": 0, "error": 0}
+    for _, fragment in parsed:
+        category = fragment["category"]
+        status = fragment["status"]
+        if status in rollup:
+            rollup[status] += 1
+        grouped.setdefault(category, []).append(
+            {
+                "id": fragment["id"],
+                "title": fragment["title"],
+                "summary": fragment.get("summary", ""),
+                "status": status,
+                "severity": fragment.get("severity"),
+                "path": f"data/{category}/{fragment['id']}.json",
+            }
+        )
+
+    categories = []
+    for category in sorted(grouped):
+        fragments = sorted(grouped[category], key=lambda entry: entry["id"])
+        categories.append(
+            {
+                "id": category,
+                "label": CATEGORY_LABELS.get(category, category.title()),
+                "fragments": fragments,
+            }
+        )
+
+    return {
+        "schema": "dev-report-manifest/v1",
+        "release": release,
+        "rollup": rollup,
+        "categories": categories,
+    }
+
+
+def write_json(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+
+def upsert_releases(reports_root, release_entry):
+    releases_path = reports_root / "releases.json"
+    releases = []
+    if releases_path.exists():
+        try:
+            existing = json.loads(releases_path.read_text(encoding="utf-8"))
+            releases = [
+                entry
+                for entry in existing.get("releases", [])
+                if entry.get("id") != release_entry["id"]
+            ]
+        except (json.JSONDecodeError, OSError):
+            releases = []
+    releases.insert(0, release_entry)
+    releases.sort(key=lambda entry: entry.get("created_at", ""), reverse=True)
+
+    handle = tempfile.NamedTemporaryFile(
+        "w",
+        encoding="utf-8",
+        dir=str(reports_root),
+        prefix=".releases-",
+        suffix=".json",
+        delete=False,
+    )
+    with handle:
+        json.dump(
+            {"schema": "dev-report-releases/v1", "releases": releases},
+            handle,
+            indent=2,
+            ensure_ascii=False,
+        )
+        handle.write("\n")
+    pathlib.Path(handle.name).replace(releases_path)
+
+
+def main():
+    parser = argparse.ArgumentParser(prog="dev-report-build", add_help=True)
+    parser.add_argument("release_id")
+    parser.add_argument("fragments_dir")
+    parser.add_argument("reports_root")
+    parser.add_argument("--vcs-ref", default=None)
+    parser.add_argument("--label", default=None)
+    parser.add_argument("--no-embed", action="store_true")
+    try:
+        args = parser.parse_args()
+    except SystemExit:
+        return 1
+
+    release_id = args.release_id
+    if not release_id or any(
+        character not in RELEASE_ID_ALLOWED for character in release_id
+    ):
+        return fail(1, f"invalid release-id '{release_id}': must match [A-Za-z0-9._-]+")
+
+    fragments_dir = pathlib.Path(args.fragments_dir)
+    reports_root = pathlib.Path(args.reports_root)
+    assets_dir = pathlib.Path(__file__).resolve().parent / "assets"
+
+    if not fragments_dir.is_dir():
+        return fail(2, f"fragments-dir is not a directory: {fragments_dir}")
+
+    failures, parsed = validate_dir(fragments_dir)
+    if failures:
+        for name in sorted(failures):
+            sys.stderr.write(f"{name}:\n")
+            for message in failures[name]:
+                sys.stderr.write(f"  - {message}\n")
+        return fail(
+            3, f"FAIL {len(failures)} fragment(s) invalid — nothing written"
+        )
+
+    try:
+        reports_root.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        return fail(2, f"cannot create reports-root {reports_root}: {error}")
+
+    git_sha = capture_git_sha()
+    created_at = (
+        datetime.datetime.now(datetime.timezone.utc)
+        .strftime("%Y-%m-%dT%H:%M:%SZ")
+    )
+    release = {
+        "id": release_id,
+        "vcs_ref": args.vcs_ref,
+        "git_sha": git_sha,
+        "created_at": created_at,
+        "label": args.label or release_id,
+    }
+    manifest = build_manifest(parsed, release)
+
+    try:
+        staging_root = pathlib.Path(
+            tempfile.mkdtemp(prefix=f".build-{release_id}-", dir=str(reports_root))
+        )
+    except OSError as error:
+        return fail(2, f"cannot create staging dir under {reports_root}: {error}")
+
+    try:
+        staging = staging_root / release_id
+        (staging / "assets").mkdir(parents=True)
+        (staging / "data").mkdir(parents=True)
+
+        shutil.copy2(assets_dir / "app.js", staging / "assets" / "app.js")
+        shutil.copy2(assets_dir / "app.css", staging / "assets" / "app.css")
+
+        embedded = {"data/manifest.json": manifest}
+        write_json(staging / "data" / "manifest.json", manifest)
+        for _, fragment in parsed:
+            relative = f"data/{fragment['category']}/{fragment['id']}.json"
+            write_json(staging / relative, fragment)
+            embedded[relative] = fragment
+
+        index_html = (assets_dir / "index.html").read_text(encoding="utf-8")
+        if not args.no_embed:
+            island = (
+                '<script id="report-data" type="application/json">'
+                + json.dumps(embedded, ensure_ascii=False)
+                + "</script>"
+            )
+            index_html = index_html.replace(DATA_ISLAND_PLACEHOLDER, island)
+        (staging / "index.html").write_text(index_html, encoding="utf-8")
+
+        final = reports_root / release_id
+        if final.exists():
+            shutil.rmtree(final)
+        staging.replace(final)
+    except OSError as error:
+        shutil.rmtree(staging_root, ignore_errors=True)
+        return fail(2, f"build failed: {error}")
+    finally:
+        shutil.rmtree(staging_root, ignore_errors=True)
+
+    try:
+        upsert_releases(
+            reports_root,
+            {
+                "id": release_id,
+                "vcs_ref": args.vcs_ref,
+                "git_sha": git_sha,
+                "created_at": created_at,
+                "label": args.label or release_id,
+                "path": f"{release_id}/",
+            },
+        )
+    except OSError as error:
+        return fail(2, f"report written but releases.json update failed: {error}")
+
+    embed_note = "embedded" if not args.no_embed else "no-embed (served mode)"
+    print(
+        f"OK reports/{release_id}/ written "
+        f"({len(parsed)} fragments, {embed_note}); releases.json updated"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
