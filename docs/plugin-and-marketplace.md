@@ -31,7 +31,7 @@ Sources (authoritative — read these when the schema matters):
 | Plugin name      | `agent-skills`                         | Namespaces skills: `content-to-image` → `/agent-skills:content-to-image`. |
 | Marketplace name | `acumen-agent-skills`                  | Public-facing in `/plugin install <plugin>@<marketplace>`.            |
 | Owner            | Acumen AI Pty Ltd · fredrik@acumen-ai.org | Marketplace maintainer.                                            |
-| Source           | This repo (`acumen-ai-org/agent-skills`) | Plugin `source` is `"."` — marketplace root *is* the plugin root.   |
+| Source           | This repo (`acumen-ai-org/agent-skills`) | Plugin `source` is `"./"` — marketplace root *is* the plugin root.  |
 
 The repo root is the plugin root: Claude Code auto-discovers `skills/` (and
 `agents/` once populated) from there. Only the two manifests live in
@@ -84,8 +84,10 @@ include it for metadata and the namespace.
 
 - **Required:** `name`, `owner` (object — `name` required, `email` optional),
   `plugins` (array).
-- Each plugin entry **requires** `name` and `source`. `source: "."` means the
-  plugin is at the marketplace root (this repo). Relative-path sources only
+- Each plugin entry **requires** `name` and `source`. `source: "./"` means the
+  plugin is at the marketplace root (this repo) — a string source must match
+  `^\./.*` (start with `./`), so `"."` is rejected by the schema. Relative-path
+  sources only
   resolve when users add the marketplace **via git** (the case here — see
   below); for URL-based distribution a `github`/`url`/`git` source object
   would be required instead.
@@ -111,7 +113,7 @@ claude plugin validate .
 
 ## Install from the marketplace
 
-Users add the marketplace (via the GitHub repo, which makes the `"."`
+Users add the marketplace (via the GitHub repo, which makes the `"./"`
 relative source resolve), then install the plugin:
 
 ```text

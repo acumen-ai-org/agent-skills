@@ -68,7 +68,7 @@ Claude Code plugin:
   dual-license SPDX expression). Components are auto-discovered from `skills/`
   and `agents/` at the repo root, so no component paths are declared.
 - `marketplace.json` — a single-plugin catalog (marketplace name
-  `acumen-agent-skills`; the plugin's `source` is `"."`, the repo root).
+  `acumen-agent-skills`; the plugin's `source` is `"./"`, the repo root).
 
 Only the manifests live in `.claude-plugin/` — component dirs (`skills/`,
 `agents/`, `hooks/`) stay at the repo root, which is also the plugin root.
