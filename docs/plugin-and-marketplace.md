@@ -127,13 +127,29 @@ To pin scope (team vs personal), see the install-scope table in the
 
 ## Versioning
 
-`version` in `plugin.json` is set (`0.1.0`), so the plugin is **pinned** to
-that string — users only receive updates when it is bumped. If `version` were
-omitted and the plugin distributed via git, every commit SHA would count as a
-new version. Bump `version` on each user-facing release (and keep it ahead of
-or equal to any value in the marketplace entry; `plugin.json` wins on
-conflict). The marketplace entry intentionally omits `version` to avoid a
-second source of truth.
+`version` in `plugin.json` is set, so the plugin is **pinned** to that string
+— installed users only receive updates when it changes. (If `version` were
+omitted and distributed via git, every commit SHA would instead count as a new
+version.) The marketplace entry intentionally omits `version` to avoid a
+second source of truth; `plugin.json` wins on conflict.
+
+Bumping is **automated** by a tracked pre-commit hook
+(`.githooks/pre-commit`): every commit increments the minor under a `0.x.0`
+scheme (`0.2.0` → `0.3.0` …) and stages `plugin.json` into that same commit.
+It is pre-commit (not post-commit / pre-push + `--amend`) on purpose — amend
+re-fires hooks and rewrites/​diverges already-finalized commits.
+
+Opt in **once per clone**:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Accepted trade-offs (chosen over omitting `version`): the number is a commit
+counter, not a semantic release marker; **every** commit bumps it (WIP, docs,
+merges); `git commit --amend`, rebase, and cherry-pick replays bump again; and
+the version line is a recurring cross-branch merge-conflict point. If a clone
+has not opted in, nothing bumps and the last committed `version` stands.
 
 ## Licensing inside the plugin
 

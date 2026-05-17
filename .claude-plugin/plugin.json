@@ -1,7 +1,7 @@
 {
   "$schema": "https://www.schemastore.org/claude-code-plugin-manifest.json",
   "name": "agent-skills",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Reusable agent Skills as portable workflows.",
   "author": {
     "name": "Acumen AI Pty Ltd",

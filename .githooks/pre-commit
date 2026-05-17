@@ -1,0 +1,43 @@
+#!/bin/sh
+# Auto-increment the plugin's minor version (0.MINOR.0 scheme) on every commit
+# and stage the change so it lands *in* the commit being created.
+#
+# Why pre-commit (not post-commit/pre-push + --amend): amend re-fires hooks
+# (recursion) and rewrites a commit that may already be pushed; a pre-push
+# amend produces a SHA that is not the one being pushed, diverging local from
+# origin. Staging in pre-commit has neither failure mode.
+#
+# Trade-off accepted deliberately: this bumps on EVERY commit (WIP, docs,
+# merges), and `git commit --amend` / rebase replays bump again. See
+# docs/plugin-and-marketplace.md "Versioning".
+#
+# Opt in per clone: git config core.hooksPath .githooks
+set -eu
+
+manifest=".claude-plugin/plugin.json"
+
+# A shared core.hooksPath may be active in checkouts without this manifest
+# (or mid-rebase states). Do nothing rather than fail the commit.
+[ -f "$manifest" ] || exit 0
+
+# Extract the first semver-shaped "version": "X.Y.Z".
+current=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)".*/\1/p' "$manifest" | head -n1)
+if [ -z "$current" ]; then
+  echo "pre-commit: no semver \"version\" in $manifest; skipping bump" >&2
+  exit 0
+fi
+
+major=${current%%.*}
+rest=${current#*.}
+minor=${rest%%.*}
+
+# 0.x.0 scheme: bump minor, pin patch to 0, leave major untouched.
+new="${major}.$((minor + 1)).0"
+
+# Rewrite only the version line so the diff stays one line (no JSON reformat).
+tmp=$(mktemp)
+sed "s/\(\"version\"[[:space:]]*:[[:space:]]*\"\)${current}\(\"\)/\1${new}\2/" "$manifest" >"$tmp"
+mv "$tmp" "$manifest"
+
+git add "$manifest"
+echo "pre-commit: plugin version ${current} -> ${new}" >&2

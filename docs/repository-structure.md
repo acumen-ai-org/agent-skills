@@ -48,10 +48,17 @@ agent-skills/
 │           └── decode.py
 ├── agents/
 │   └── README.md                   # roles shared by 2+ Skills (skeleton)
+├── .githooks/                      # git hooks (NOT Claude Code hooks); opt in via core.hooksPath
+│   └── pre-commit                  # auto-bumps plugin.json minor version
 ├── references/                     # repo-level shared references  (empty until needed *)
 ├── hooks/                          # session/agent lifecycle hooks (empty until needed *)
 └── scripts/                        # repo-level maintenance scripts (empty until needed *)
 ```
+
+`.githooks/` holds **git** hooks and is distinct from `hooks/`, which is for
+Claude Code session/agent lifecycle hooks the runtime executes. Git hooks are
+not active until a clone runs `git config core.hooksPath .githooks`. See
+[plugin-and-marketplace.md](plugin-and-marketplace.md#versioning).
 
 `*` Git does not store empty directories, so these three are **not
 version-controlled until they contain a file**. They are conventional
