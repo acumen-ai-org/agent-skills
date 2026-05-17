@@ -1,4 +1,5 @@
 {
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
   "name": "acumen-agent-skills",
   "owner": {
     "name": "Acumen AI Pty Ltd",
@@ -8,7 +9,7 @@
   "plugins": [
     {
       "name": "agent-skills",
-      "source": ".",
+      "source": "./",
       "description": "Reusable agent Skills as portable workflows.",
       "license": "AGPL-3.0-only OR LicenseRef-Commercial",
       "category": "productivity",

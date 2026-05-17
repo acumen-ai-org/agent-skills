@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "$schema": "https://www.schemastore.org/claude-code-plugin-manifest.json",
   "name": "agent-skills",
   "version": "0.1.0",
   "description": "Reusable agent Skills as portable workflows.",
