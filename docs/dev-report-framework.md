@@ -2,8 +2,9 @@
 
 The contract and rendering model for `dev-report-framework` — the Skill that
 aggregates report fragments from every `dev-analysis-`/`dev-test-` Skill into
-one navigable, standalone HTML report folder per release, with a
-this-release-vs-previous split-screen.
+one navigable, standalone HTML report folder per release, with a permanent
+This-release / vs-production two-column layout and a separate
+show/hide-previous-releases split-screen.
 
 The report-fragment JSON is the **only** coupling between producers and the
 framework. A producer Skill emits valid fragments and knows nothing about
@@ -56,9 +57,9 @@ producer Skill's `*-synthesis.md` role enriches `summary` and adds narrative
 ## Body section types
 
 Each `body[]` element is
-`{ "type": <enum>, "title"?: <string>, "view"?: "release\|delta",
-"files"?: [...], ...type fields }`. The renderer has exactly one function per
-type. Ten types in v1:
+`{ "type": <enum>, "title"?: <string>, "view"?: "release\|production",
+"menu"?: <string>, "module"?: <string>, "files"?: [...], ...type fields }`.
+The renderer has exactly one function per type. Ten types in v1:
 
 | `type`         | Shape (beyond `type`/`title`) | Renders as |
 | -------------- | ----------------------------- | ---------- |
@@ -77,9 +78,12 @@ An unrecognized `type` renders a visible "unsupported section type `X`
 (fragment `id`)" placeholder. It never fails the build — the contract is
 forward-compatible by design.
 
-`view` (`"release"|"delta"`, absent ⇒ `"release"`) decides which of the two
-permanent columns a section lands in; an invalid value fails validation. A
-section MAY also carry `"module": "<id>"` (non-empty string), an opaque
+`view` (`"release"|"production"`, absent ⇒ `"release"`) decides which of the
+two permanent columns a section lands in; an invalid value fails validation. A
+section MAY also carry `"menu": "<label>"` (non-empty string, else validation
+fails), the producer-declared top-menu group label (see
+[Layout, navigation, and split-screen model](#layout-navigation-and-split-screen-model)),
+and `"module": "<id>"` (non-empty string), an opaque
 module tag driving the global module filter (see
 [Module filter](#module-filter)). `files:[{path,lang,excerpt,startLine?}]`
 carries producer-embedded source excerpts; a path string matching a
@@ -110,7 +114,7 @@ whose `module` is set and ≠ *M* and, in tables with a `type:"module"`
 column, rows whose module cell ≠ *M*; sections with no `module` and
 empty-module rows always stay visible; `All` filters nothing. The selection
 is persisted in the URL hash so deep links and back/forward keep it, and it
-composes with the two-column view, the per-section menu, the
+composes with the two-column view, the top menu, the
 show/hide-previous split, and the table filter. When no module ids exist
 anywhere the selector is not rendered, so reports that do not use modules are
 visually unchanged.
@@ -313,20 +317,35 @@ option, not part of v1.
   `⚠ superseded — latest is <newest-id>` (warn-amber). The badge text states
   the state so it is not color-only, making a stale report file obvious.
 - **Permanent two columns.** Every fragment renders as two fixed side-by-side
-  columns: a left **This release** column (all `view:"release"`/untagged
-  sections, in `body[]` order) and a right **Δ vs previous** column (all
-  `view:"delta"` sections, in order). An empty column shows a muted
-  `— nothing for this view —`. This is structural and separate from the
-  show/hide-previous-releases feature; untagged fragments are
+  columns. The left **This release** column is the state *after* this release
+  (all `view:"release"`/untagged sections, in `body[]` order). The right
+  **vs production** column is the difference this release makes to production —
+  the release-candidate's diff against the production branch, conceptually the
+  `production..main` scope (all `view:"production"` sections, in order). An
+  empty column shows a muted `— nothing for this view —`. This is structural
+  and explicitly distinct from the show/hide-previous-releases feature, which
+  is an unrelated cross-release history view (the second pane loading the same
+  fragment `id` from a sibling release via `releases.json`); it is **not** a
+  comparison against the previous report or release. Untagged fragments are
   backward-compatible (everything lands left).
 - **Left nav** is built from `manifest.json`: categories → fragments, a status
   dot per fragment, a roll-up badge per category. An `overview` category is
   pinned first and its fragment (lexically-first `id` if several) is the
   default page on load. The URL hash (`#dependencies/dependency-graph`)
   deep-links and drives the back button.
-- **Per-section top menu.** Selecting a category with more than one fragment
-  shows a horizontal tab menu of that category's fragments inside the content
-  area; picking one shows just that fragment instead of one long scroll.
+- **Top menu (producer-declared, current report part only).** The in-content
+  top menu is computed from the currently-displayed fragment: the distinct
+  section `menu` labels in first-appearance order across its `body[]`, with a
+  leading default item (the fragment's `title`, or `Overview`) collecting any
+  sections that carry no `menu`. Selecting an item shows only that group's
+  sections; the first is selected by default and the choice is persisted in
+  the URL hash alongside the area/part/module state, so deep links and
+  back/forward restore it (an absent/invalid value falls back to the first
+  item). Switching the left-nav report part recomputes the menu from the
+  newly shown fragment. A fragment with no `menu` labels renders no top menu
+  and shows every section (backward-compatible). The menu is intra-part
+  section-group navigation only — it never lists categories, tools, or
+  sibling fragments; the left nav stays the area → report-part selector.
 - A **show/hide-previous-releases toggle** (labelled "Show/hide previous
   releases") switches between current-release-only and a second pane showing
   the same fragment `id` from a sibling release.

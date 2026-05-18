@@ -14,6 +14,14 @@ run-git-of-theseus.sh / collect-author-activity.sh from <out_dir> and writes
 references/*-narrative.md and *-classification.md roles enrich summary and
 append narrative body[].
 
+Each fragment declares its own top-menu groups via section "menu" labels.
+evolution: the extension→folder→file tree under "Extension tree", per-pair and
+code-maat churn under "Churn", the change-concentration treemap under
+"Hotspots". author-activity: the per-author summary and author×type heatmap
+under "Authors", the per-PR detail under "PRs". The metric-cards (and the
+author-activity vibe-coder key-value) stay untagged so the renderer collects
+them under the leading default group (the fragment title).
+
 Exit codes:
   0  requested fragment(s) written
   1  bad arguments
@@ -211,6 +219,7 @@ def build_evolution(out_dir):
             "type": "table",
             "title": "Files changed by extension → folder → file",
             "view": "release",
+            "menu": "Extension tree",
             "filterable": True,
             "columns": [
                 {"key": "name", "label": "Extension / folder / file", "type": "string", "sortable": True},
@@ -222,8 +231,9 @@ def build_evolution(out_dir):
         },
         {
             "type": "table",
-            "title": "Per-release-pair churn",
-            "view": "delta",
+            "title": "Per-release-pair churn (change vs production)",
+            "view": "production",
+            "menu": "Churn",
             "columns": [
                 {"key": "pair", "label": "Release pair", "type": "string", "sortable": True},
                 {"key": "files_changed", "label": "Files changed", "type": "number", "sortable": True},
@@ -236,6 +246,7 @@ def build_evolution(out_dir):
             "type": "treemap",
             "title": "Change concentration by extension",
             "view": "release",
+            "menu": "Hotspots",
             "root": {"name": "changed files", "children": treemap_children}
             if treemap_children
             else {"name": "changed files", "value": 0},
@@ -247,8 +258,9 @@ def build_evolution(out_dir):
         body.append(
             {
                 "type": "table",
-                "title": "code-maat churn",
-                "view": "delta",
+                "title": "code-maat churn (change vs production)",
+                "view": "production",
+                "menu": "Churn",
                 "filterable": True,
                 "columns": [
                     {
@@ -440,6 +452,7 @@ def build_author_activity(out_dir):
         {
             "type": "table",
             "title": "Per-author summary",
+            "menu": "Authors",
             "filterable": True,
             "columns": author_columns,
             "rows": author_rows,
@@ -448,6 +461,7 @@ def build_author_activity(out_dir):
         {
             "type": "table",
             "title": "Per-PR detail",
+            "menu": "PRs",
             "filterable": True,
             "columns": [
                 {"key": "pr", "label": "PR", "type": "number", "sortable": True},
@@ -464,6 +478,7 @@ def build_author_activity(out_dir):
         {
             "type": "heatmap",
             "title": "Author × PR type",
+            "menu": "Authors",
             "colorScale": "sequential",
             "xLabels": heatmap_x,
             "yLabels": heatmap_y,

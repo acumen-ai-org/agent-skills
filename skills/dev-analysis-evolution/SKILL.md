@@ -104,12 +104,24 @@ module-agnostic row (empty module cell, never filtered). The global `Module:`
 selector hides rows whose module id differs from the selected module; the
 built-in table filter still narrows by typed text and composes with it.
 
-**Release vs delta view.** Release-over-release comparison sections carry
-`view:"delta"` (per-release-pair churn, code-maat churn) and land in the right
-**Δ vs previous** column; point-in-time inventories (the extension→folder→file
-tree of this range, the change-concentration treemap) are default release view
-and land left. Either fragment still emits and validates when only one view
-has content (the author-activity fragment has no delta section).
+**This-release vs vs-production view.** Sections representing the change this
+release introduces carry `view:"production"` (per-release-pair churn, code-maat
+churn) and land in the right **vs production** column; point-in-time
+inventories (the extension→folder→file tree of this range, the
+change-concentration treemap) are default release view and land left. Either
+fragment still emits and validates when only one view has content (the
+author-activity fragment has no vs-production section).
+
+**Top menu (per report part).** Each fragment declares its own intra-part
+top-menu groups via section `menu` labels, composing with the two-column view
+and the module filter. The **evolution** part groups its sections into
+**Extension tree** (the extension→folder→file table), **Churn** (per-release-pair
+and, when present, code-maat churn), and **Hotspots** (the
+change-concentration treemap). The **author-activity** part groups into
+**Authors** (the per-author summary table and the author×PR-type heatmap) and
+**PRs** (the per-PR detail table). The `metric-cards` (and the author-activity
+vibe-coder `key-value`) stay untagged, so the renderer collects them under a
+leading default item labelled with the fragment title.
 
 ## Procedure
 

@@ -216,6 +216,15 @@ One fragment, `category: architecture`, `schema: dev-report-fragment/v1`.
 - `status` — `ok` (clean), `warn` (cycles or advisory violations), `error`
   (a blocking layering violation; runner exits `4`).
 
+This report part exposes a top menu grouping its sections: **Dependency
+graph** (the `d3-graph` and the tool-free per-file listing), **Cycles**,
+**Rules**, **Flow** (import-flow `sankey`), **C4** (the `mermaid`), and **ADR**
+(the ADR table + index). The `metric-cards` orientation stays untagged, so the
+renderer collects it under a leading default item labelled with the fragment
+title. Only the groups whose sections exist in a given run appear; the
+tool-wrapper path (no source sections) shows just the default group plus
+**Dependency graph**, **Cycles**, **Rules** as applicable.
+
 The script writes the factual parts; the synthesis role enriches `summary` and
 appends the narrative `markdown`. See
 [`references/architecture-synthesis.md`](references/architecture-synthesis.md).

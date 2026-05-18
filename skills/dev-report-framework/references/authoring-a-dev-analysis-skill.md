@@ -15,6 +15,8 @@ renders it generically; no framework change is ever needed for a new producer.
 - [Picking section types](#picking-section-types)
 - [The feedback loop](#the-feedback-loop)
 - [Worked minimal producer](#worked-minimal-producer)
+- [Menu groups (optional)](#menu-groups-optional)
+- [Module attribution (optional)](#module-attribution-optional)
 - [Out of scope](#out-of-scope)
 
 ## The producer contract
@@ -135,6 +137,17 @@ The smallest conformant fragment a `to-fragment.py` can emit:
 
 This validates, renders four ways (two cards + prose), and diffs both metrics
 against the previous release.
+
+## Menu groups (optional)
+
+Set `"menu": "<label>"` on `body[]` sections to give your report part a top
+menu. The renderer lists the distinct labels (first-appearance order); any
+untagged sections collect under a leading default item named after the
+fragment's `title`. Absent on every section ⇒ no top menu and all sections
+show (legacy). The menu is scoped to your report part only — switching the
+left-nav part recomputes it from that fragment; it never lists sibling
+fragments or tools. Use it to break a long report part into reader-chosen
+groups (e.g. `Graph`, `Cycles`, `ADR`); leave it off for a single-flow part.
 
 ## Module attribution (optional)
 

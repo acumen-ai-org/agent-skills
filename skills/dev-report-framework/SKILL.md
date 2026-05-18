@@ -1,6 +1,6 @@
 ---
 name: dev-report-framework
-description: Aggregates report fragments emitted by dev-analysis-* and dev-test-* Skills into one standalone, navigable HTML release-candidate report folder per release, with a permanent two-column This-release/Δ-vs-previous layout and a show/hide-previous-releases split-screen. Validates fragments against the dev-report-fragment/v1 contract, lays them out by category, embeds everything into index.html so the folder opens via file:// with no server, and upserts a top-level releases.json for prev/next navigation. Use when building or refreshing a release report from collected analysis fragments, or when authoring a producer Skill that must emit conformant fragment JSON.
+description: Aggregates report fragments emitted by dev-analysis-* and dev-test-* Skills into one standalone, navigable HTML release-candidate report folder per release, with a permanent two-column This-release/vs-production layout and a show/hide-previous-releases split-screen. Validates fragments against the dev-report-fragment/v1 contract, lays them out by category, embeds everything into index.html so the folder opens via file:// with no server, and upserts a top-level releases.json for prev/next navigation. Use when building or refreshing a release report from collected analysis fragments, or when authoring a producer Skill that must emit conformant fragment JSON.
 ---
 
 # dev-report-framework
@@ -64,8 +64,9 @@ contracts | mission | test-coverage | test-reports | overview`), `title`,
 diff surface). Each `body[]` element is one of ten typed sections (`markdown`,
 `table`, `key-value`, `metric-cards`, `d3-graph`, `sankey`, `treemap`,
 `heatmap`, `mermaid`, `image`); an unknown type renders a visible placeholder,
-never a failure. A section MAY also carry `view` (`"release"|"delta"`,
-absent ⇒ `"release"`), `module` (an opaque module-id tag), and `files[]`
+never a failure. A section MAY also carry `view` (`"release"|"production"`,
+absent ⇒ `"release"`), `menu` (a non-empty top-menu group label),
+`module` (an opaque module-id tag), and `files[]`
 (producer-embedded excerpts opened in a preview modal). A `table` row MAY
 carry `children[]` (expandable subrows) and a `table` column MAY be
 `type:"file"` or `type:"module"`.
@@ -90,10 +91,13 @@ The shell is titled **Release candidate report**.
   `⚠ superseded — latest is <newest-id>` (warn-amber) so a stale report file
   is obvious. The badge text carries the state (not color alone).
 - **Two columns, always.** Every fragment renders as two fixed side-by-side
-  columns: left **This release** (all `view:"release"`/untagged sections in
-  order), right **Δ vs previous** (all `view:"delta"` sections in order). An
-  empty column shows `— nothing for this view —`. This is permanent and
-  distinct from the previous-releases toggle.
+  columns: left **This release** (the state after this release — all
+  `view:"release"`/untagged sections in order), right **vs production** (the
+  difference this release makes to production, the release-candidate's diff
+  against the production branch, conceptually `production..main` — all
+  `view:"production"` sections in order). An empty column shows
+  `— nothing for this view —`. This is permanent and distinct from the
+  previous-releases toggle, an unrelated cross-release history feature.
 - **Show/hide previous releases.** The sidebar button (labelled
   `Show/hide previous releases`) toggles the second pane that loads the same
   fragment `id` from a sibling release, with the metric Δ table and `◀ ▶`
@@ -104,10 +108,16 @@ The shell is titled **Release candidate report**.
 - **Overview landing.** A `category:"overview"` fragment is pinned first in
   the left nav and is the default page on load (lexically-first `id` if
   several). It renders like any fragment.
-- **Per-section top menu.** Selecting a category with more than one fragment
-  shows a horizontal tab menu of that category's fragments inside the content
-  area; picking one shows just that fragment. The left nav still lists
-  categories → fragments.
+- **Top menu (producer-declared, current part only).** The in-content top
+  menu is computed from the **currently-displayed** fragment: the distinct
+  section `menu` labels in first-appearance order across its `body[]`, with a
+  leading default item (the fragment's `title`, or `Overview`) collecting any
+  untagged sections. Selecting an item shows only that group's sections; the
+  first is the default and the choice rides in the URL hash. A fragment with
+  no `menu` labels shows no top menu and all its sections (legacy). The menu
+  is intra-part section-group navigation only — it never lists categories,
+  tools, or sibling fragments. The left nav remains the area → report-part
+  selector.
 - **File preview.** A path token (a `table` `type:"file"` cell matching a
   `files[].path`) opens a modal rendering the producer-embedded excerpt —
   markdown via marked+DOMPurify, otherwise an escaped `<pre>`. "Open full
@@ -131,7 +141,7 @@ lexically. Selecting module *M* hides any section whose `module` is set and
 cell ≠ *M*; sections with no `module` and rows with an empty/absent module
 cell always stay visible. `All` filters nothing. The selection rides in the
 URL hash (so deep links and back/forward keep it) and composes with the
-two-column view, the per-section menu, the show/hide-previous split, and the
+two-column view, the top menu, the show/hide-previous split, and the
 table filter. **Inert when absent:** if no module ids exist anywhere the
 selector is not rendered, so reports that do not use modules look unchanged.
 
@@ -187,8 +197,10 @@ reads `YYYY-MM-DD · <release-id>[ · N commits]` followed by a
 `✓ latest`/`⚠ superseded` badge; an `overview` fragment (if any) is
 pinned first and shown on load; the left nav lists categories with status dots
 and a per-category roll-up; every fragment shows the two **This release** /
-**Δ vs previous** columns; a multi-fragment category shows the per-section top
-menu; at least one non-trivial body type (graph/table/heatmap) draws. If a
+**vs production** columns; a fragment whose sections carry `menu` labels
+shows the producer-declared top menu (untagged sections under a leading
+default item) and switching menu items swaps the shown sections; at least one
+non-trivial body type (graph/table/heatmap) draws. If a
 second release exists, serve the report (`python3 -m http.server`), toggle
 **Show/hide previous releases**, and confirm the right pane loads the
 previous release and the metric Δ table appears; on a `file://` page that

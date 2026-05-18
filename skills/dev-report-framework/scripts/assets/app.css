@@ -194,7 +194,7 @@ button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
   background: var(--panel);
 }
 
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 #previous-controls {
   display: flex;

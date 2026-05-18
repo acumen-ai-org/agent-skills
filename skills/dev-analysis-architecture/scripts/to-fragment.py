@@ -21,7 +21,12 @@ The graph becomes a d3-graph body; metrics carry node_count, edge_count,
 cycle_count, max_depth; any reported violation drives status (warn for
 cycles/soft rule findings, error for hard layering violations) and exit 4.
 The tool-free raw additionally carries an import-flow sankey, a C4 mermaid,
-a per-file listing table, and an ADR table + markdown index. The listing and
+a per-file listing table, and an ADR table + markdown index. Sections carry a
+top-menu group via "menu": the dependency graph and its per-file listing under
+"Dependency graph", cycles under "Cycles", rule violations under "Rules", the
+import-flow sankey under "Flow", the C4 mermaid under "C4", and the ADR table
+and index under "ADR"; the metric-cards orientation stays untagged so the
+renderer collects it under the leading default group (the fragment title). The listing and
 ADR tables carry a type:"module" column whose ids come from the shared
 scripts/modules.py resolver (config from the raw's repo/config location); the
 whole-repo d3-graph, sankey, and C4 mermaid stay module-agnostic.
@@ -495,6 +500,13 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         }
     ]
 
+    menu_graph = "Dependency graph"
+    menu_cycles = "Cycles"
+    menu_rules = "Rules"
+    menu_flow = "Flow"
+    menu_c4 = "C4"
+    menu_adr = "ADR"
+
     cycle_members = set()
     for cycle in cycles:
         cycle_members.update(cycle)
@@ -526,6 +538,7 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         body.append(
             {
                 "type": "d3-graph",
+                "menu": menu_graph,
                 "title": "Module dependency graph",
                 "layout": layout,
                 "nodes": graph_nodes,
@@ -536,6 +549,7 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         body.append(
             {
                 "type": "markdown",
+                "menu": menu_graph,
                 "title": "Module dependency graph",
                 "md": (
                     f"Graph has {len(node_ids)} nodes, above the "
@@ -549,6 +563,7 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         body.append(
             {
                 "type": "table",
+                "menu": menu_cycles,
                 "title": "Cycles",
                 "filterable": True,
                 "columns": [
@@ -567,6 +582,7 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         body.append(
             {
                 "type": "table",
+                "menu": menu_rules,
                 "title": "Rule violations",
                 "filterable": True,
                 "columns": [
@@ -588,11 +604,25 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         )
 
     if extra is not None:
-        body.extend(_source_sections(node_ids, edges, weights, node_meta, extra))
+        body.extend(
+            _source_sections(
+                node_ids,
+                edges,
+                weights,
+                node_meta,
+                extra,
+                {
+                    "graph": menu_graph,
+                    "flow": menu_flow,
+                    "c4": menu_c4,
+                    "adr": menu_adr,
+                },
+            )
+        )
     return body
 
 
-def _source_sections(node_ids, edges, weights, node_meta, extra):
+def _source_sections(node_ids, edges, weights, node_meta, extra, menus):
     sections = []
 
     def group_of(node_id):
@@ -638,6 +668,7 @@ def _source_sections(node_ids, edges, weights, node_meta, extra):
         sections.append(
             {
                 "type": "sankey",
+                "menu": menus["flow"],
                 "title": flow_title,
                 "nodes": [{"id": nid, "label": flow_label(nid)} for nid in flow_node_ids],
                 "links": [
@@ -653,6 +684,7 @@ def _source_sections(node_ids, edges, weights, node_meta, extra):
     sections.append(
         {
             "type": "mermaid",
+            "menu": menus["c4"],
             "title": "C4 context / container",
             "diagram": c4_mermaid,
         }
@@ -670,6 +702,7 @@ def _source_sections(node_ids, edges, weights, node_meta, extra):
         sections.append(
             {
                 "type": "table",
+                "menu": menus["graph"],
                 "title": "Source files by module",
                 "filterable": True,
                 "columns": [
@@ -697,6 +730,7 @@ def _source_sections(node_ids, edges, weights, node_meta, extra):
         sections.append(
             {
                 "type": "table",
+                "menu": menus["adr"],
                 "title": "Architecture decision records",
                 "filterable": True,
                 "columns": [
@@ -720,6 +754,7 @@ def _source_sections(node_ids, edges, weights, node_meta, extra):
         sections.append(
             {
                 "type": "markdown",
+                "menu": menus["adr"],
                 "title": "ADR index",
                 "md": (
                     f"{len(adrs)} architecture decision record(s) found. "
@@ -733,6 +768,7 @@ def _source_sections(node_ids, edges, weights, node_meta, extra):
         sections.append(
             {
                 "type": "markdown",
+                "menu": menus["adr"],
                 "title": "ADR index",
                 "md": (
                     "No architecture decision records were found under the "
