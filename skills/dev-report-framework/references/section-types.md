@@ -7,7 +7,8 @@ carries a given fact. The authoritative field rules are in
 
 ## Contents
 
-- [Two-column release/delta view](#two-column-releasedelta-view)
+- [Two-column This-release / vs-production view](#two-column-this-release--vs-production-view)
+- [Top menu (menu groups)](#top-menu-menu-groups)
 - [Module filter](#module-filter)
 - [markdown](#markdown)
 - [table](#table)
@@ -23,19 +24,60 @@ carries a given fact. The authoritative field rules are in
 - [Unknown types](#unknown-types)
 - [Out of scope](#out-of-scope)
 
-## Two-column release/delta view
+## Two-column This-release / vs-production view
 
 Every fragment renders as two fixed side-by-side columns regardless of which
-release is shown: a left column headed **This release** and a right column
-headed **Δ vs previous**. A section's optional `"view"` tag (`"release"` or
-`"delta"`, absent ⇒ `"release"`) decides its column; sections keep `body[]`
-order within their column. An empty column shows a muted
-`— nothing for this view —` placeholder. This is permanent fragment structure
-and is separate from the sidebar's show/hide-previous-releases toggle.
+release is shown: a left column headed **This release** — the state after this
+release — and a right column headed **vs production** — the difference this
+release makes to production (the release-candidate's diff against the
+production branch, conceptually the `production..main` scope). A section's
+optional `"view"` tag (`"release"` or `"production"`, absent ⇒ `"release"`)
+decides its column; sections keep `body[]` order within their column. An empty
+column shows a muted `— nothing for this view —` placeholder. This is permanent
+fragment structure and is separate from the sidebar's
+show/hide-previous-releases toggle, an unrelated cross-release history feature.
 
 ```json
-{ "type": "metric-cards", "view": "delta", "title": "Since last release",
+{ "type": "metric-cards", "view": "production", "title": "Change vs production",
   "cards": [ { "label": "New cycles", "value": 1, "delta_metric": "cycle_count" } ] }
+```
+
+## Top menu (menu groups)
+
+A section's optional `"menu": "<label>"` (non-empty string) places it in a
+named top-menu group. For the displayed fragment the renderer lists the
+distinct `menu` labels in first-appearance order; sections with no `menu`
+collect under one leading default item labelled with the fragment's `title`
+(or `Overview`), placed first. Selecting an item shows only that group's
+sections; the first is the default, persisted in the URL hash. A fragment
+with no `menu` labels renders no top menu and shows every section. The menu is
+scoped to the current report part only — it never lists sibling fragments or
+tools. Within a group the two-column view, module filter, and table behavior
+all still apply.
+
+The four sections below produce a 3-item top menu plus a leading default
+group — `[<fragment title>, Graph, Cycles, ADR]` — with the untagged `Summary`
+section under the default group:
+
+```json
+{ "type": "markdown", "title": "Summary",
+  "md": "Orientation across the surfaces below." }
+```
+
+```json
+{ "type": "d3-graph", "menu": "Graph", "title": "Module graph",
+  "layout": "dag", "nodes": [ {"id":"auth"} ], "links": [] }
+```
+
+```json
+{ "type": "table", "menu": "Cycles", "title": "Cycles",
+  "columns": [ {"key":"members","label":"Members","type":"string"} ],
+  "rows": [ {"members":"auth → billing → auth"} ] }
+```
+
+```json
+{ "type": "markdown", "menu": "ADR", "title": "ADR-014",
+  "md": "Adopt a layered DAG; the `auth ↔ billing` cycle is the open risk." }
 ```
 
 ## Module filter
@@ -47,8 +89,8 @@ tag, a `table` `type:"module"` column cell, or the manifest `modules` list
 tagged to a different module and, in tables with a `type:"module"` column,
 rows whose module cell is a different module; untagged sections and
 empty-module rows always show. `All` filters nothing. The choice rides in the
-URL hash and composes with the two-column view, per-section menu, split, and
-table filter. With no module ids anywhere the selector is not rendered.
+URL hash and composes with the two-column view, top menu, split, and table
+filter. With no module ids anywhere the selector is not rendered.
 
 ```json
 { "type": "markdown", "module": "core", "title": "Core notes",

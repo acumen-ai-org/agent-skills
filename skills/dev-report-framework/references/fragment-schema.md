@@ -9,6 +9,7 @@ ships inside the Skill so the contract travels with the renderer.
 - [Top-level fields](#top-level-fields)
 - [metrics is a flat number map](#metrics-is-a-flat-number-map)
 - [Body section types](#body-section-types)
+- [Menu groups and the top menu](#menu-groups-and-the-top-menu)
 - [Modules and the global filter](#modules-and-the-global-filter)
 - [One filled example per section type](#one-filled-example-per-section-type)
 - [Manifest and releases files](#manifest-and-releases-files)
@@ -51,9 +52,9 @@ narrative `body[]`. The merged object is what is validated.
 ## Body section types
 
 Each `body[]` element is
-`{ "type": <enum>, "title"?: <string>, "view"?: "release\|delta",
-"files"?: [...], …type fields }`. Ten types in v1; the renderer has exactly
-one function per type.
+`{ "type": <enum>, "title"?: <string>, "view"?: "release\|production",
+"menu"?: <string>, "module"?: <string>, "files"?: [...], …type fields }`. Ten
+types in v1; the renderer has exactly one function per type.
 
 | `type`         | Required shape (beyond `type`/`title`) |
 | -------------- | -------------------------------------- |
@@ -76,15 +77,43 @@ shape checked.
 ### `view` — which column a section lands in (section-level)
 
 Every fragment renders as two fixed side-by-side columns: a left **This
-release** column and a right **Δ vs previous** column. A section MAY carry
-`"view": "release" | "delta"`; **absent ⇒ `"release"`**. Release-view
-sections fill the left column in `body[]` order; delta-view sections fill the
-right column in `body[]` order. A column with no sections shows a muted
+release** column (the state *after* this release) and a right **vs production**
+column (the difference this release makes to production — the
+release-candidate's diff against the production branch, conceptually the
+`production..main` scope). A section MAY carry
+`"view": "release" | "production"`; **absent ⇒ `"release"`**. Release-view
+sections fill the left column in `body[]` order; production-view sections fill
+the right column in `body[]` order. A column with no sections shows a muted
 `— nothing for this view —` placeholder. If present, `view` must be exactly
-`"release"` or `"delta"` (any other value fails validation). Untagged
+`"release"` or `"production"` (any other value fails validation). Untagged
 fragments are backward-compatible: every section lands left and still
 validates. This two-column structure is permanent and is distinct from the
-show/hide-previous-releases toggle.
+show/hide-previous-releases toggle, which is an unrelated cross-release history
+feature.
+
+### `menu` — top-menu group label (section-level)
+
+A section MAY carry `"menu": "<label>"`, a non-empty string naming the
+top-menu group the section belongs to. If present, `menu` must be a non-empty
+string (any other value fails validation). It is the producer's declaration of
+how a report part's sections split into named groups.
+
+The top menu is scoped to the **current report part only**. For the displayed
+fragment the renderer computes the ordered list of distinct `menu` labels by
+**first appearance** across `body[]`. If at least one label exists, the menu
+renders those labels in first-appearance order; any sections with no `menu`
+are collected under a single leading default item whose label is the
+fragment's `title` (or `Overview` if it has none), placed **first**. Selecting
+a menu item shows only that group's sections; the first item is selected by
+default and the choice is persisted in the URL hash. If the fragment carries
+**zero** `menu` labels, no top menu renders and every section shows — fully
+backward-compatible. The left nav remains the area → report-part selector; the
+top menu is purely intra-part section-group navigation and never lists tools,
+fragment ids, or sibling fragments.
+
+Within the selected group the two-column `view` layout, the global `Module:`
+filter, file preview, table children, etc. all still apply to the shown
+sections. Untagged sections are backward-compatible.
 
 ### `module` — module ownership tag (section-level)
 
@@ -120,6 +149,28 @@ indented one level. Filtering keeps a row if it or any descendant matches
 (ancestors shown). Sorting applies within each level. `children`, if present,
 must be an array; nested rows are validated recursively.
 
+## Menu groups and the top menu
+
+A report part (one fragment) MAY split its `body[]` sections into named
+**menu groups** by tagging sections with `"menu": "<label>"`. The top menu is
+producer-declared and scoped strictly to the currently-displayed fragment:
+
+- Distinct `menu` labels are listed in **first-appearance order** across
+  `body[]`. Sections with no `menu` collect under one leading default item
+  labelled with the fragment's `title` (or `Overview`), placed **first**.
+- Selecting a menu item shows only that group's sections; the first item is
+  the default. The selection rides in the URL hash so deep links and
+  back/forward restore it (an absent/invalid value falls back to the first
+  item). Switching the left-nav report part recomputes the menu from the
+  newly shown fragment.
+- A fragment with **zero** `menu` labels renders no top menu and shows every
+  section (legacy behavior). Untagged sections are backward-compatible.
+
+The top menu is intra-part section-group navigation only; it never lists
+tools, fragment ids, or sibling fragments. Within the selected group the
+two-column `view` layout, the global module filter, file preview, and table
+children all still apply.
+
 ## Modules and the global filter
 
 A report MAY partition its content by **module** — an opaque producer-defined
@@ -144,7 +195,7 @@ whose `module` is set and ≠ *M*, and in any table with a `type:"module"`
 column hides rows whose module cell ≠ *M*; sections with no `module` and rows
 with an empty/absent module cell always stay visible. `All` filters nothing.
 The selection is carried in the URL hash so deep links and back/forward keep
-it, and it composes with the two-column view, the per-section menu, the
+it, and it composes with the two-column view, the top menu, the
 show/hide-previous split, and the table filter. When no module ids exist
 anywhere the selector is not rendered — reports that do not use modules look
 unchanged.
@@ -213,10 +264,10 @@ unchanged.
   "alt": "Release overview infographic" }
 ```
 
-A `delta`-view section (lands in the right **Δ vs previous** column):
+A `production`-view section (lands in the right **vs production** column):
 
 ```json
-{ "type": "metric-cards", "view": "delta", "title": "Since last release",
+{ "type": "metric-cards", "view": "production", "title": "Change vs production",
   "cards": [ { "label": "New cycles", "value": 1, "delta_metric": "cycle_count" } ] }
 ```
 
@@ -260,6 +311,26 @@ empty-module row is never filtered):
   "rows": [ {"mod":"core","finding":"unused export"},
             {"mod":"root","finding":"stale lockfile"},
             {"mod":"","finding":"repo-wide TODO sweep"} ] }
+```
+
+Sections split into top-menu groups by `menu` (the untagged `Summary`
+collects under the default group labelled with the fragment's `title`, placed
+first; then `Graph`, then `Cycles` in first-appearance order):
+
+```json
+{ "type": "markdown", "title": "Summary",
+  "md": "Orientation across the graph and cycle findings." }
+```
+
+```json
+{ "type": "d3-graph", "menu": "Graph", "title": "Module graph", "layout": "dag",
+  "nodes": [ {"id":"auth","label":"auth"} ], "links": [] }
+```
+
+```json
+{ "type": "table", "menu": "Cycles", "title": "Cycles",
+  "columns": [ {"key":"members","label":"Members","type":"string"} ],
+  "rows": [ {"members":"auth → billing → auth"} ] }
 ```
 
 A complete fragment with all required top-level fields and a body of these

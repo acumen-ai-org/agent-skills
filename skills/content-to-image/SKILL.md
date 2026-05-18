@@ -16,6 +16,10 @@ self-contained — no external registered subagents.
   for Illustration / Isometric / Photography / Explorative; Line art and
   Tactile drop it.
 
+Need a single image fast, without the pipeline? See
+[One-shot text→image](#one-shot-textimage) — one script, one provider call,
+always produces an artifact.
+
 Step detail lives in the role files — read them when running that step, not
 before:
 
@@ -134,6 +138,49 @@ Skip cleanup if any step failed — the trace files are how the caller
 diagnoses. Set `$KEEP_FILES=true` when iterating on prompts or re-rendering
 without re-running the LLM steps.
 
+## One-shot text→image
+
+`scripts/text-to-image.sh` is a shortcut that **bypasses the 3-step pipeline**
+entirely. It builds a minimal image prompt directly from the given text — no
+extract, no art-direct, no prompt-synth, no theme overlay — and reuses
+`render-lib.sh` (shared with `render.sh`), so it gets the **same provider call
+and the same upstream-overload retry/fallback** (Foundry "EngineOverloaded" →
+OpenAI fallback → 5s/15s/30s backoff) with no duplicated logic.
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/scripts/text-to-image.sh" "<short text>" "<out-image-path>"
+# or pipe the text on stdin (pass "-" or omit the text arg):
+echo "<short text>" | bash "${CLAUDE_SKILL_DIR}/scripts/text-to-image.sh" - "<out-image-path>"
+```
+
+| Input              | Notes                                                              |
+| ------------------ | ------------------------------------------------------------------ |
+| text (positional)  | Short text to illustrate. `-` or omitted → read from stdin.        |
+| out-image-path     | Where the image is written. Required.                              |
+
+Provider selection and the render env vars (`IMAGE_PROVIDER`, `OPENAI_API_KEY`,
+the Azure Foundry vars) are exactly the same as the pipeline render step above.
+
+**On success** it decodes the real generated image (PNG, via `decode.py`) to
+the output path and logs `REAL image written via <provider>` to stderr.
+
+**Guaranteed fallback**: if generation ultimately fails — all providers and the
+5s/15s/30s retries exhausted, auth failure, or any other hard failure — the
+script still writes a valid image to the output path: a locally generated
+**SVG** (`scripts/fallback_svg.py`, python3 stdlib only, no external libraries;
+an SVG is a valid image, embeds as a data URI, and renders in a report
+`<img>`/image body). The fallback SVG (1024×576) visibly contains the headline
+`Failed to generate image` and, below it, one line per attempt with the
+provider and HTTP status / error (e.g. `foundry: HTTP 503`,
+`openai-fallback: HTTP 503`, `openai-retry+5s: HTTP 503`). All diagnostic text
+is XML-escaped. The same diagnostics are printed to stderr, prefixed
+`FALLBACK`.
+
+**Exit semantics**: exit `0` whenever **any** image was written — real *or*
+fallback — so callers always receive an image artifact. Exit non-zero
+(`64`) **only** on bad usage (missing output path / empty text). stderr always
+states whether the artifact is the `REAL` image or the `FALLBACK`, and why.
+
 ## Outputs
 
 `$KEEP_FILES=false` (default): `$OUT_DIR/<slug>.png` only.
@@ -163,9 +210,17 @@ kept regardless of `$KEEP_FILES`.
   retries the active provider after 5s, 15s, 30s backoff. Only after all of
   these fail does it exit 2 with an upstream-overload message. Non-overload
   errors (auth, bad request, network) are not retried.
+- **One-shot generation fails** (`scripts/text-to-image.sh`, any reason) → a
+  diagnostic SVG with the `Failed to generate image` headline and a per-attempt
+  provider+status list is still written to the output path; the script exits
+  `0` (an artifact always exists). Read the SVG or stderr for the diagnostics.
 
 ## Exit codes
 
 - `0` — image written.
 - `1` — a pipeline step failed to return a parseable response.
 - `2` — image API failed; trace files were still written.
+
+`scripts/text-to-image.sh` has its own contract: `0` whenever any image (real
+or fallback SVG) was written, non-zero (`64`) only on bad usage. See
+[One-shot text→image](#one-shot-textimage).

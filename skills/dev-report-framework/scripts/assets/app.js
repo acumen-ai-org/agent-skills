@@ -85,7 +85,8 @@
     currentId: null,
     previousIndex: 0,
     moduleOptions: ["All"],
-    currentModule: "All"
+    currentModule: "All",
+    currentMenu: null
   };
 
   function moduleColumns(columns) {
@@ -1017,7 +1018,68 @@
     return table;
   }
 
-  function renderFragment(target, fragment, deltas) {
+  function defaultMenuLabel(fragment) {
+    return fragment && fragment.title ? fragment.title : "Overview";
+  }
+
+  function menuLabels(fragment) {
+    var seen = {};
+    var ordered = [];
+    (fragment && fragment.body ? fragment.body : []).forEach(function (section) {
+      if (section && _isMenuString(section.menu) && !seen[section.menu]) {
+        seen[section.menu] = true;
+        ordered.push(section.menu);
+      }
+    });
+    return ordered;
+  }
+
+  function _isMenuString(value) {
+    return typeof value === "string" && value !== "";
+  }
+
+  function hasUntaggedSection(fragment) {
+    return (fragment && fragment.body ? fragment.body : []).some(function (
+      section
+    ) {
+      return section && !_isMenuString(section.menu);
+    });
+  }
+
+  function menuGroups(fragment) {
+    var labels = menuLabels(fragment);
+    if (!labels.length) {
+      return [];
+    }
+    var groups = [];
+    if (hasUntaggedSection(fragment)) {
+      groups.push(defaultMenuLabel(fragment));
+    }
+    return groups.concat(labels);
+  }
+
+  function resolveMenu(fragment) {
+    var groups = menuGroups(fragment);
+    if (!groups.length) {
+      return null;
+    }
+    if (state.currentMenu != null && groups.indexOf(state.currentMenu) !== -1) {
+      return state.currentMenu;
+    }
+    return groups[0];
+  }
+
+  function sectionInMenu(section, fragment, activeMenu) {
+    if (activeMenu == null) {
+      return true;
+    }
+    if (_isMenuString(section.menu)) {
+      return section.menu === activeMenu;
+    }
+    return activeMenu === defaultMenuLabel(fragment);
+  }
+
+  function renderFragment(target, fragment, deltas, activeMenu) {
     clear(target);
     if (!fragment) {
       target.appendChild(
@@ -1042,18 +1104,21 @@
     var releaseCol = el("div", { class: "view-col" }, [
       el("div", { class: "view-col-head", text: "This release" })
     ]);
-    var deltaCol = el("div", { class: "view-col" }, [
-      el("div", { class: "view-col-head", text: "Δ vs previous" })
+    var productionCol = el("div", { class: "view-col" }, [
+      el("div", { class: "view-col-head", text: "vs production" })
     ]);
     var releaseCount = 0;
-    var deltaCount = 0;
+    var productionCount = 0;
     (fragment.body || []).forEach(function (section) {
+      if (!sectionInMenu(section, fragment, activeMenu)) {
+        return;
+      }
       if (sectionModuleHidden(section)) {
         return;
       }
-      if (section.view === "delta") {
-        deltaCol.appendChild(sectionBlock(section));
-        deltaCount += 1;
+      if (section.view === "production") {
+        productionCol.appendChild(sectionBlock(section));
+        productionCount += 1;
       } else {
         releaseCol.appendChild(sectionBlock(section));
         releaseCount += 1;
@@ -1064,13 +1129,13 @@
         el("div", { class: "placeholder", text: "— nothing for this view —" })
       );
     }
-    if (!deltaCount) {
-      deltaCol.appendChild(
+    if (!productionCount) {
+      productionCol.appendChild(
         el("div", { class: "placeholder", text: "— nothing for this view —" })
       );
     }
     target.appendChild(
-      el("div", { class: "view-cols" }, [releaseCol, deltaCol])
+      el("div", { class: "view-cols" }, [releaseCol, productionCol])
     );
 
     var producer = fragment.producer || {};
@@ -1204,28 +1269,19 @@
     header.appendChild(pills);
   }
 
-  function currentCategoryFragments() {
-    var category = orderedCategories().filter(function (entry) {
-      return entry.id === state.currentCategory;
-    })[0];
-    return category ? category.fragments : [];
-  }
-
   function renderCurrent(fragment, deltas) {
     var paneCurrent = document.getElementById("pane-current");
-    renderFragment(paneCurrent, fragment, deltas);
-    var siblings = currentCategoryFragments();
-    if (siblings.length > 1) {
+    var groups = menuGroups(fragment);
+    var activeMenu = resolveMenu(fragment);
+    state.currentMenu = activeMenu;
+    renderFragment(paneCurrent, fragment, deltas, activeMenu);
+    if (groups.length) {
       var menu = el("div", { class: "section-menu" });
-      siblings.forEach(function (entry) {
+      groups.forEach(function (label) {
         var tab = el("a", {
-          class:
-            "section-tab" + (entry.id === state.currentId ? " active" : ""),
-          href: "#" + state.currentCategory + "/" + entry.id + moduleSuffix()
-        }, [
-          el("span", { class: "dot " + entry.status }),
-          entry.title
-        ]);
+          class: "section-tab" + (label === activeMenu ? " active" : ""),
+          href: routeHash(label)
+        }, [label]);
         menu.appendChild(tab);
       });
       paneCurrent.insertBefore(menu, paneCurrent.firstChild);
@@ -1351,6 +1407,7 @@
     var raw = window.location.hash.replace(/^#/, "");
     var route = raw;
     var module = null;
+    var menu = null;
     var queryAt = raw.indexOf("?");
     if (queryAt !== -1) {
       route = raw.slice(0, queryAt);
@@ -1359,27 +1416,46 @@
         .split("&")
         .forEach(function (pair) {
           var eq = pair.indexOf("=");
-          if (eq !== -1 && pair.slice(0, eq) === "module") {
+          if (eq === -1) {
+            return;
+          }
+          var key = pair.slice(0, eq);
+          if (key === "module") {
             module = decodeURIComponent(pair.slice(eq + 1));
+          } else if (key === "menu") {
+            menu = decodeURIComponent(pair.slice(eq + 1));
           }
         });
     }
-    return { route: route, module: module };
+    return { route: route, module: module, menu: menu };
+  }
+
+  function querySuffix(menu) {
+    var params = [];
+    if (state.currentModule && state.currentModule !== "All") {
+      params.push("module=" + encodeURIComponent(state.currentModule));
+    }
+    if (menu != null) {
+      params.push("menu=" + encodeURIComponent(menu));
+    }
+    return params.length ? "?" + params.join("&") : "";
   }
 
   function moduleSuffix() {
-    if (state.currentModule && state.currentModule !== "All") {
-      return "?module=" + encodeURIComponent(state.currentModule);
-    }
-    return "";
+    return querySuffix(null);
   }
 
-  function routeHash() {
+  function routeHash(menu) {
     if (!state.currentCategory || !state.currentId) {
       return "";
     }
+    var label = menu === undefined ? state.currentMenu : menu;
     return (
-      "#" + state.currentCategory + "/" + state.currentId + moduleSuffix()
+      "#" +
+      state.currentCategory +
+      "/" +
+      state.currentId +
+      querySuffix(label)
     );
   }
 
@@ -1390,6 +1466,7 @@
     } else {
       state.currentModule = "All";
     }
+    state.currentMenu = parsed.menu;
     var moduleSelect = document.getElementById("module-select");
     if (moduleSelect) {
       moduleSelect.value = state.currentModule;

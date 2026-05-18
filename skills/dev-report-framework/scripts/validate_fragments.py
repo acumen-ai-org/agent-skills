@@ -30,7 +30,7 @@ CATEGORIES = {
     "overview",
 }
 STATUSES = {"ok", "info", "warn", "error"}
-SECTION_VIEWS = {"release", "delta"}
+SECTION_VIEWS = {"release", "production"}
 SECTION_TYPES = {
     "markdown",
     "table",
@@ -108,9 +108,11 @@ def _validate_section(section, index):
     if not _is_str(section_type):
         return [f"{where}: missing 'type'"]
     if "view" in section and section["view"] not in SECTION_VIEWS:
-        errors.append(f"{where}: 'view' must be 'release' or 'delta'")
+        errors.append(f"{where}: 'view' must be 'release' or 'production'")
     if "module" in section and not _is_str(section["module"]):
         errors.append(f"{where}: 'module' must be a non-empty string")
+    if "menu" in section and not _is_str(section["menu"]):
+        errors.append(f"{where}: 'menu' must be a non-empty string")
     errors.extend(_validate_files(section, where))
     if section_type not in SECTION_TYPES:
         return errors
