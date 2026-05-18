@@ -127,7 +127,11 @@ the raws that exist. The script writes factual `metrics{}` and factual
 
 Follow [`references/threat-synthesis.md`](references/threat-synthesis.md) with
 the fragment from step 5 as input. It sets `summary` and inserts three
-narrative `markdown` sections (attack surface, secrets, data-flow & taint).
+narrative `markdown` sections (attack surface, secrets, data-flow & taint),
+each tagged `"menu": "Assessment"` so the narrative lands under its own
+top-menu group. The script-emitted sections carry their own groups: the
+network cards and egress/ingress tables under `Network`, the secret cards and
+table under `Secrets`, the Semgrep cards and findings table under `Taint`.
 Run inline, or delegate to an isolated agent passing the role file as
 instructions for fresh context. Write the enriched fragment back to the same
 path.

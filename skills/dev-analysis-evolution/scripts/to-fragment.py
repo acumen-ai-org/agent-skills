@@ -53,6 +53,19 @@ def _now():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _report_help():
+    help_path = (
+        pathlib.Path(__file__).resolve().parent
+        / ".."
+        / "references"
+        / "report-help.md"
+    )
+    try:
+        return help_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def _read_json(path):
     return json.loads(path.read_text(encoding="utf-8"))
 
@@ -220,6 +233,7 @@ def build_evolution(out_dir):
             "title": "Files changed by extension → folder → file",
             "view": "release",
             "menu": "Extension tree",
+            "status": "ok",
             "filterable": True,
             "columns": [
                 {"key": "name", "label": "Extension / folder / file", "type": "string", "sortable": True},
@@ -234,6 +248,7 @@ def build_evolution(out_dir):
             "title": "Per-release-pair churn (change vs production)",
             "view": "production",
             "menu": "Churn",
+            "status": "ok",
             "columns": [
                 {"key": "pair", "label": "Release pair", "type": "string", "sortable": True},
                 {"key": "files_changed", "label": "Files changed", "type": "number", "sortable": True},
@@ -247,6 +262,7 @@ def build_evolution(out_dir):
             "title": "Change concentration by extension",
             "view": "release",
             "menu": "Hotspots",
+            "status": "ok",
             "root": {"name": "changed files", "children": treemap_children}
             if treemap_children
             else {"name": "changed files", "value": 0},
@@ -261,6 +277,7 @@ def build_evolution(out_dir):
                 "title": "code-maat churn (change vs production)",
                 "view": "production",
                 "menu": "Churn",
+                "status": "ok",
                 "filterable": True,
                 "columns": [
                     {
@@ -304,6 +321,9 @@ def build_evolution(out_dir):
         "metrics": metrics,
         "body": body,
     }
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
     return fragment, 0
 
 
@@ -334,6 +354,7 @@ def build_author_activity(out_dir):
     per_author = {}
     detail_rows = []
     pr_types_seen = []
+    any_work_item_url = False
 
     for unit in pr_units:
         author = unit.get("author") or unit.get("raw_author_name") or "(unknown)"
@@ -356,12 +377,25 @@ def build_author_activity(out_dir):
                 author_record["type_breakdown"].get(pr_type, 0) + 1
             )
 
-        work_items = unit.get("work_items", [])
-        work_item_ids = ", ".join(
-            "#" + str(item.get("id"))
-            for item in work_items
+        work_items = [
+            item
+            for item in unit.get("work_items", [])
             if isinstance(item, dict) and item.get("id") is not None
+        ]
+        work_item_ids = ", ".join("#" + str(item["id"]) for item in work_items)
+        row_has_url = any(
+            isinstance(item.get("url"), str) and item["url"] for item in work_items
         )
+        if row_has_url:
+            any_work_item_url = True
+            work_item_cell = [
+                {"text": "#" + str(item["id"]), "href": item["url"]}
+                if isinstance(item.get("url"), str) and item["url"]
+                else "#" + str(item["id"])
+                for item in work_items
+            ]
+        else:
+            work_item_cell = work_item_ids
         seen_modules = []
         for path in unit.get("changed_paths", []):
             module = resolver.resolve(path)
@@ -378,7 +412,7 @@ def build_author_activity(out_dir):
                     "module": module,
                     "type": pr_type or "(unclassified)",
                     "pattern_use": pattern_use or "",
-                    "work_items": work_item_ids,
+                    "work_items": work_item_cell,
                 }
             )
 
@@ -453,6 +487,7 @@ def build_author_activity(out_dir):
             "type": "table",
             "title": "Per-author summary",
             "menu": "Authors",
+            "status": "ok",
             "filterable": True,
             "columns": author_columns,
             "rows": author_rows,
@@ -462,6 +497,7 @@ def build_author_activity(out_dir):
             "type": "table",
             "title": "Per-PR detail",
             "menu": "PRs",
+            "status": "ok",
             "filterable": True,
             "columns": [
                 {"key": "pr", "label": "PR", "type": "number", "sortable": True},
@@ -470,7 +506,12 @@ def build_author_activity(out_dir):
                 {"key": "module", "label": "Module", "type": "module", "sortable": True},
                 {"key": "type", "label": "Type", "type": "string", "sortable": True},
                 {"key": "pattern_use", "label": "Pattern use", "type": "string", "sortable": True},
-                {"key": "work_items", "label": "Work items", "type": "string", "sortable": True},
+                {
+                    "key": "work_items",
+                    "label": "Work items",
+                    "type": "link" if any_work_item_url else "string",
+                    "sortable": True,
+                },
             ],
             "rows": detail_rows,
             "defaultSort": {"key": "pr", "dir": "desc"},
@@ -479,6 +520,7 @@ def build_author_activity(out_dir):
             "type": "heatmap",
             "title": "Author × PR type",
             "menu": "Authors",
+            "status": "ok",
             "colorScale": "sequential",
             "xLabels": heatmap_x,
             "yLabels": heatmap_y,
@@ -505,6 +547,9 @@ def build_author_activity(out_dir):
         "metrics": metrics,
         "body": body,
     }
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
     return fragment, 0
 
 

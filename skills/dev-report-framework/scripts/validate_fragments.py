@@ -15,6 +15,11 @@ import json
 import pathlib
 import sys
 
+_REPO_SCRIPTS = pathlib.Path(__file__).resolve().parents[3] / "scripts"
+if str(_REPO_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_REPO_SCRIPTS))
+from verify_mermaid import lint_diagram
+
 SCHEMA_VERSION = "dev-report-fragment/v1"
 CATEGORIES = {
     "architecture",
@@ -28,6 +33,7 @@ CATEGORIES = {
     "test-coverage",
     "test-reports",
     "overview",
+    "report",
 }
 STATUSES = {"ok", "info", "warn", "error"}
 SECTION_VIEWS = {"release", "production"}
@@ -42,6 +48,7 @@ SECTION_TYPES = {
     "heatmap",
     "mermaid",
     "image",
+    "diff-view",
 }
 ID_ALLOWED = set("abcdefghijklmnopqrstuvwxyz0123456789-")
 
@@ -113,6 +120,10 @@ def _validate_section(section, index):
         errors.append(f"{where}: 'module' must be a non-empty string")
     if "menu" in section and not _is_str(section["menu"]):
         errors.append(f"{where}: 'menu' must be a non-empty string")
+    if "status" in section and section["status"] not in STATUSES:
+        errors.append(f"{where}: 'status' must be one of " + " | ".join(sorted(STATUSES)))
+    if "help" in section and not isinstance(section["help"], str):
+        errors.append(f"{where}: 'help' must be a string")
     errors.extend(_validate_files(section, where))
     if section_type not in SECTION_TYPES:
         return errors
@@ -131,8 +142,8 @@ def _validate_section(section, index):
             for ci, column in enumerate(columns):
                 if not _is_obj(column) or not _is_str(column.get("key")) or not _is_str(column.get("label")):
                     errors.append(f"{where} (table): columns[{ci}] needs 'key' and 'label'")
-                elif column.get("type") not in ("string", "number", "file", "module"):
-                    errors.append(f"{where} (table): columns[{ci}].type must be 'string', 'number', 'file' or 'module'")
+                elif column.get("type") not in ("string", "number", "file", "module", "link"):
+                    errors.append(f"{where} (table): columns[{ci}].type must be 'string', 'number', 'file', 'module' or 'link'")
         if not isinstance(rows, list):
             errors.append(f"{where} (table): 'rows' must be an array")
         else:
@@ -204,6 +215,56 @@ def _validate_section(section, index):
     elif section_type == "mermaid":
         if not _is_str(section.get("diagram")):
             errors.append(f"{where} (mermaid): missing 'diagram' string")
+        else:
+            for reason in lint_diagram(section["diagram"]):
+                errors.append(f"{where} (mermaid): {reason}")
+    elif section_type == "diff-view":
+        perspectives = section.get("perspectives")
+        if not isinstance(perspectives, list) or not perspectives:
+            errors.append(f"{where} (diff-view): 'perspectives' must be a non-empty array")
+        else:
+            for pi, perspective in enumerate(perspectives):
+                if not _is_obj(perspective):
+                    errors.append(f"{where} (diff-view): perspectives[{pi}] must be an object")
+                    continue
+                slug = perspective.get("slug")
+                if not _is_str(slug) or any(
+                    character not in ID_ALLOWED for character in slug
+                ):
+                    errors.append(
+                        f"{where} (diff-view): perspectives[{pi}].slug must match [a-z0-9-]+"
+                    )
+                if not _is_str(perspective.get("title")):
+                    errors.append(
+                        f"{where} (diff-view): perspectives[{pi}] needs a non-empty 'title'"
+                    )
+                if not _is_str(perspective.get("lead")):
+                    errors.append(
+                        f"{where} (diff-view): perspectives[{pi}] needs a non-empty 'lead'"
+                    )
+                items = perspective.get("items")
+                if not isinstance(items, list) or not items:
+                    errors.append(
+                        f"{where} (diff-view): perspectives[{pi}].items must be a non-empty array"
+                    )
+                    continue
+                for ii, item in enumerate(items):
+                    if not _is_obj(item):
+                        errors.append(
+                            f"{where} (diff-view): perspectives[{pi}].items[{ii}] must be an object"
+                        )
+                        continue
+                    before = item.get("before")
+                    after = item.get("after")
+                    if not isinstance(before, str) or not isinstance(after, str):
+                        errors.append(
+                            f"{where} (diff-view): perspectives[{pi}].items[{ii}] needs string 'before' and 'after'"
+                        )
+                        continue
+                    if before == "" and after == "":
+                        errors.append(
+                            f"{where} (diff-view): perspectives[{pi}].items[{ii}] cannot have both 'before' and 'after' empty"
+                        )
     elif section_type == "image":
         if not _is_str(section.get("src")):
             errors.append(f"{where} (image): missing 'src' string")
@@ -255,6 +316,9 @@ def validate_fragment(fragment):
 
     if not _is_str(fragment.get("generated_at")):
         errors.append("'generated_at' must be a non-empty ISO-8601 string")
+
+    if "help" in fragment and not isinstance(fragment["help"], str):
+        errors.append("'help' must be a string")
 
     if "metrics" in fragment:
         metrics = fragment["metrics"]

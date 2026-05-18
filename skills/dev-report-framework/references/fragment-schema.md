@@ -9,6 +9,7 @@ ships inside the Skill so the contract travels with the renderer.
 - [Top-level fields](#top-level-fields)
 - [metrics is a flat number map](#metrics-is-a-flat-number-map)
 - [Body section types](#body-section-types)
+- [mermaid is linted at validate time](#mermaid-is-linted-at-validate-time)
 - [Menu groups and the top menu](#menu-groups-and-the-top-menu)
 - [Modules and the global filter](#modules-and-the-global-filter)
 - [One filled example per section type](#one-filled-example-per-section-type)
@@ -23,15 +24,23 @@ One JSON object per fragment, one file per fragment.
 | -------------- | ------------- | -------- | ---- |
 | `schema`       | string        | yes      | Exactly `"dev-report-fragment/v1"`. Forward-compat gate. |
 | `id`           | string        | yes      | `[a-z0-9-]+`, unique within a release. Filename, nav anchor, cross-release diff key. |
-| `category`     | enum          | yes      | One of `architecture`, `evolution`, `dependencies`, `quality`, `security`, `schema`, `contracts`, `mission`, `test-coverage`, `test-reports`, `overview`. |
+| `category`     | enum          | yes      | One of `architecture`, `evolution`, `dependencies`, `quality`, `security`, `schema`, `contracts`, `mission`, `test-coverage`, `test-reports`, `overview`, `report`. |
 | `title`        | string        | yes      | Non-empty. Nav label + fragment header. |
 | `summary`      | string        | yes      | One line, plain text, no markdown. May be empty string but the key is required. |
 | `status`       | enum          | yes      | `ok`, `info`, `warn`, `error`. Drives the badge and roll-up. |
 | `severity`     | number\|null  | no       | 0–100. Finer ordering within `warn`/`error`. |
+| `help`         | string        | no       | Markdown. When non-empty (or any section has `help`) the fragment header shows a `❓` link to a consolidated `help.html` page that explains how to read this report part. Empty string allowed (no link). |
 | `producer`     | object        | yes      | `{ "skill", "tool", "version" }` — all three non-empty strings. |
-| `generated_at` | string        | yes      | Non-empty ISO-8601 UTC. Display only, not the release identity. |
+| `generated_at` | string        | yes      | Non-empty ISO-8601 UTC. Display only, not the release identity. Rendered through a shared UTC formatter as `YYYY-MM-DD HH:MM UTC` in the fragment footer and the `🪜` provenance panel. |
 | `metrics`      | object        | no       | Flat `string → number` map. The cross-release diff surface. |
 | `body`         | array         | yes      | Ordered typed sections. May be empty but the key is required. |
+
+A fragment with `category:"report"` is pinned **second** in the left nav
+(after `overview`); every other category sorts lexically after the two pins.
+
+The `producer{}` object and `generated_at` also feed the per-fragment `🪜`
+provenance panel: a header toggle reveals Skill, Tool, Version, Generated (the
+shared `YYYY-MM-DD HH:MM UTC` formatter), and a `skills/<skill>/` source path.
 
 A duplicate `id` across two files in the same staging dir is a validation
 failure.
@@ -52,27 +61,51 @@ narrative `body[]`. The merged object is what is validated.
 ## Body section types
 
 Each `body[]` element is
-`{ "type": <enum>, "title"?: <string>, "view"?: "release\|production",
-"menu"?: <string>, "module"?: <string>, "files"?: [...], …type fields }`. Ten
-types in v1; the renderer has exactly one function per type.
+`{ "type": <enum>, "title"?: <string>, "status"?: "ok\|info\|warn\|error",
+"help"?: <string>, "view"?: "release\|production", "menu"?: <string>,
+"module"?: <string>, "files"?: [...], …type fields }`. The renderer has
+exactly one function per type.
+
+A section MAY carry `"status"` (one of `ok|info|warn|error`); when set, a
+status icon (`✅`/`ℹ️`/`⚠️`/`🚨`) is prepended to the section heading. A
+section with neither `title` nor `status` stays headerless (unchanged). If
+present, `status` must be one of the four values (any other value fails
+validation). A section MAY also carry `"help"` (a short string); when set it
+becomes the section heading's hover tooltip and is listed under the fragment's
+entry on `help.html`. `help` must be a string if present (empty string
+allowed). Both are optional and back-compatible.
 
 | `type`         | Required shape (beyond `type`/`title`) |
 | -------------- | -------------------------------------- |
 | `markdown`     | `md: string` (GitHub-flavored, sanitized before injection). |
-| `table`        | `columns:[{key,label,type:"string\|number\|file\|module",sortable?}]`, `rows:[obj]`; optional `filterable`, `defaultSort:{key,dir}`. `columns` non-empty. A row MAY carry `children:[row,…]` (recursive, expandable). A `type:"file"` column's cell value is a path string resolved against the section's `files[]`. A `type:"module"` column's cell value is an opaque module-id string the global filter matches on. |
+| `table`        | `columns:[{key,label,type:"string\|number\|file\|module\|link",sortable?}]`, `rows:[obj]`; optional `filterable`, `defaultSort:{key,dir}`. `columns` non-empty. A row MAY carry `children:[row,…]` (recursive, expandable). A `type:"file"` column's cell value is a path string resolved against the section's `files[]`. A `type:"module"` column's cell value is an opaque module-id string the global filter matches on. A `type:"link"` column's cell value is `{ "text", "href" }`, a list of those (comma-joined), or a plain string (rendered as text); each `{text,href}` becomes a `target=_blank rel=noopener` anchor. |
 | `key-value`    | `pairs:[{k,v}]`, non-empty. |
 | `metric-cards` | `cards:[{label,value,unit?,delta_metric?}]`, non-empty. `delta_metric` links a card to a `metrics` key for the split-screen ▲/▼. |
 | `d3-graph`     | `nodes:[{id,label?,group?}]` (non-empty), `links:[{source,target,value?}]`, `layout:"force\|dag\|chord"`. |
 | `sankey`       | `nodes:[{id,label?}]` (non-empty), `links:[{source,target,value}]` (non-empty). |
 | `treemap`      | `root:{name,children?,value?}` — `root.name` required. |
 | `heatmap`      | `xLabels:[]` (non-empty), `yLabels:[]` (non-empty), `cells:[{x,y,v}]`, `colorScale:"sequential\|diverging"`. |
-| `mermaid`      | `diagram: string`. |
+| `mermaid`      | `diagram: string`. Linted at validate time (a structural mermaid lint, see [mermaid lint](#mermaid-is-linted-at-validate-time)). |
 | `image`        | `src: string` (a `data:image/…;base64,…` URI, standalone-safe, or a relative `assets/…` path), `alt: string`; optional `title`. |
+| `diff-view`    | `perspectives:[{slug,title,lead,items}]`, non-empty. `slug` `[a-z0-9-]+`; `title`/`lead` non-empty strings; `items:[{before,after}]` non-empty, each a string pair. An item with both `before` and `after` empty is invalid. Renders a grouped before/after word-diff table. |
 
 An unrecognized `type` is **not** a validation failure: it renders a visible
 "unsupported section type `X`" placeholder. The contract is
-forward-compatible by design — only the ten known types have their inner
-shape checked.
+forward-compatible by design — only the known types have their inner shape
+checked.
+
+### mermaid is linted at validate time
+
+A `mermaid` section's `diagram` string is structurally linted by
+`validate_fragments.py` (a deterministic, dependency-free check: a known
+diagram header, a direction token for `flowchart`/`graph`, balanced
+brackets/quotes and `subgraph`/`end`, no reserved bare node id, no stray
+fences, content after the header). A diagram that fails the lint is a normal
+validation error, so `dev-report-build` refuses to ship a broken diagram
+instead of silently rendering an empty panel. A fragment with no `mermaid`
+section is unaffected. A deeper true-parse pass via mermaid-cli is available
+out-of-band through the standalone `scripts/verify_mermaid.py` tool; it is not
+part of the validate-time gate (no dependency is required to validate).
 
 ### `view` — which column a section lands in (section-level)
 
@@ -83,8 +116,14 @@ release-candidate's diff against the production branch, conceptually the
 `production..main` scope). A section MAY carry
 `"view": "release" | "production"`; **absent ⇒ `"release"`**. Release-view
 sections fill the left column in `body[]` order; production-view sections fill
-the right column in `body[]` order. A column with no sections shows a muted
-`— nothing for this view —` placeholder. If present, `view` must be exactly
+the right column in `body[]` order. An empty **left** column shows a muted
+`— nothing for this view —`. An empty **right** column shows the same string
+**only when a production baseline exists**; with no baseline it shows
+`No previous production to compare with`. The baseline signal is the embedded
+`releases.json`: a baseline exists iff some release entry has an `id` other
+than the shown release's id (a build-time snapshot, evaluated under `file://`
+without a network read). A producer never emits either placeholder — the
+renderer owns the empty-column message. If present, `view` must be exactly
 `"release"` or `"production"` (any other value fails validation). Untagged
 fragments are backward-compatible: every section lands left and still
 validates. This two-column structure is permanent and is distinct from the
@@ -264,6 +303,25 @@ unchanged.
   "alt": "Release overview infographic" }
 ```
 
+```json
+{ "type": "diff-view", "title": "Diff view", "menu": "Diff view",
+  "perspectives": [
+    { "slug": "user", "title": "User perspective (need)",
+      "lead": "What end users see and do.",
+      "items": [
+        { "before": "",                     "after": "Composition edit-mode panel" },
+        { "before": "insertion-order chips", "after": "alphabetical chips" },
+        { "before": "Legacy selections",     "after": "" } ] } ] }
+```
+
+The single `{ before, after }` pair is the whole item model: `before` empty ⇒
+NEW, `after` empty ⇒ DELETED, both set ⇒ UPDATED. Both empty is invalid, and
+an empty `items` list is invalid — a perspective with no real items is dropped
+by the producer, never emitted empty. The renderer word-diffs each pair when
+jsdiff is loaded and falls back to plain text otherwise (a row is never
+blank). The item's before/after is the change's own before/after and is
+independent of the `view` column tag.
+
 A `production`-view section (lands in the right **vs production** column):
 
 ```json
@@ -377,12 +435,15 @@ is absent). It seeds the global module-filter option set; the build does not
 parse or validate the ids.
 
 `commit_count` is `null` when `dev-report-build` is run without `--commits`.
-The renderer formats the report title as
-`<created_at date> · <release id> · N commits` — the release id is the
-version (the `· N commits` clause is omitted when `commit_count` is null). A
-status badge follows the title, computed from the embedded `releases.json`:
-`✓ latest` when the shown release equals `releases[0].id` (newest by
-`created_at`), else `⚠ superseded — latest is <newest id>`.
+The renderer formats the report title as `YYYY-MM-DD · <release id>` — the
+date is the `created_at` date slice and the release id is the version. When
+`commit_count` is non-null it renders on a second muted line as `N commits`
+(no commit clause in the title itself). A status badge follows the title,
+computed from the embedded `releases.json`: it appears **only** when the shown
+release is stale — `⚠ superseded — latest is <newest id>` when the shown
+release is not `releases[0].id` (newest by `created_at`). The newest release
+shows no badge (the absence is the "latest" signal; there is no `✓ latest`
+chip).
 
 `dev-report-build` embeds the post-upsert `releases.json` into every
 `index.html`'s `<script id="report-data">` data island under the key
@@ -393,8 +454,14 @@ the build-time snapshot, while a served report re-reads the live file.
 
 A fragment with `category:"overview"` is pinned **first** in the left nav and
 is the default page on initial load when one is present; if there are several,
-the lexically-first `id` is the landing fragment. It renders like any other
-fragment.
+the lexically-first `id` is the landing fragment. A `category:"report"`
+fragment is pinned **second**. All remaining categories sort lexically after
+the two pins. Both render like any other fragment.
+
+The left nav groups categories by **area**: `test-coverage` and `test-reports`
+collapse under one `Tests` head; every other category is its own area. Each
+area head shows the combined fragment count and the worst member status; each
+fragment link still routes by its real `category`/`id`.
 
 ## Out of scope
 

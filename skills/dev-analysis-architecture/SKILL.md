@@ -136,25 +136,13 @@ It never fails solely because no analyzer is installed.
 statically scans tracked source for a module/package dependency inventory
 across stacks (TS/JS `import`/`require`; Python `import`/`from`; C#/F# `using`
 + `.csproj`/`.fsproj` `<ProjectReference>`; Rust `mod`/`use`; Go `import`) —
-nodes + directed edges with `value` = import/reference count — and an ADR
-inventory. With `[ref]` every file is read from `git show <ref>:<path>` so a
-release tag is inventoried without a checkout. Because this *is* the no-tool
-path it never exits `3`: exit `0` on success, `5` on a bad repo/ref, `1` on
-bad args. It writes one raw JSON, `architecture-source.raw.json`.
+nodes + directed edges with `value` = import/reference count. With `[ref]`
+every file is read from `git show <ref>:<path>` so a release tag is
+inventoried without a checkout. Because this *is* the no-tool path it never
+exits `3`: exit `0` on success, `5` on a bad repo/ref, `1` on bad args. It
+writes one raw JSON, `architecture-source.raw.json`.
 
-ADR inventory globs (matched against repo-relative paths):
-
-```
-docs/adr*/**/*.md   docs/adr*/*.md
-docs/decisions/**/*.md   docs/decisions/*.md
-adr/**/*.md   adr/*.md
-**/*-adr-*.md
-```
-
-Each match contributes its path, `# ` title, and `Status:` line to the ADR
-index.
-
-**b. Apply judgement.** Module grouping and C4 boundaries are judgement the
+**b. Apply judgement.** Module grouping into cohesive units is judgement the
 script cannot make. Read [`references/structure-from-source.md`](references/structure-from-source.md)
 against the raw JSON — inline, or delegated to an isolated agent for fresh
 context — and write its strict payload next to the raw (it shares the raw's
@@ -165,8 +153,10 @@ alone is already a valid `to-fragment.py` input.
 tool-free path emits the same `architecture` fragment with the existing
 metrics keys plus: a `d3-graph` (layout `force`/`dag`, or `chord` for
 all-to-all coupling — chord is allowed by the framework), a `sankey` of
-import flow weighted by import count, a C4 `mermaid` context/container view,
-and an ADR `table` + a short `markdown` index.
+import flow weighted by import count, and — when the repo resolves to two or
+more modules with at least one inter-module import edge — a C4 `mermaid`
+context/container view. A single-module repo (or one with no inter-module
+edges) carries no C4 section; the producer never emits an empty diagram.
 
 **d.** Synthesize and validate exactly as steps 3 and 4 — the fragment is
 identical in shape to a tool-produced one, so the rest of the pipeline is
@@ -178,22 +168,30 @@ this guidance when all of them do, not by rewriting any runner.
 
 ## Module dimension
 
-The tool-free path's per-file listing table and ADR table each carry a
-`type: "module"` column so the framework's global `Module:` selector can
-filter their rows. The id for a row's path comes from the shared resolver —
-`scripts/modules.py id <repo-relative-path> --config <repo>/dev-process.json`
-— shelled out by `to-fragment.py`; the resolution rule is never reimplemented
-here. `collect-structure.py` records the `<repo>/dev-process.json` location in
-its raw so `to-fragment.py` can find the config.
+This is a module-aware producer: it **always** resolves a repo-relative path
+to a module id through the shared resolver —
+`${CLAUDE_PLUGIN_ROOT}/scripts/modules.py id <path> --config
+<repo>/dev-process.json`, shelled out by `to-fragment.py` — and **never**
+hand-tags or parses ids itself. The resolution rule is never reimplemented
+here. With no `dev-process.json` or an empty `modules` array the resolver
+returns `root` for every path; everything resolving to `root` is the only
+acceptable no-modules state. `collect-structure.py` records the
+`<repo>/dev-process.json` location in its raw so `to-fragment.py` finds the
+config.
 
-With no `dev-process.json` or an empty `modules` array the resolver returns
-`root` for every path, so the column is present but inert (every row stays
-visible under any selection) — no special-casing.
+The tool-free path's per-file listing table carries a `type: "module"` column
+so the framework's global `Module:` selector can filter its rows. With no
+modules the column is present but inert (every row stays visible) — no
+special-casing.
 
-The whole-repo structural views — the dependency `d3-graph`, the import-flow
-`sankey`, and the C4 `mermaid` — are repo-wide by construction and stay
-module-agnostic (no section `module`), so they always show regardless of the
-selector.
+**Graph node-count semantics.** When `<repo>/dev-process.json` defines a
+non-empty `modules` set, the dependency `d3-graph` and the import-flow
+`sankey` collapse file/package nodes to their resolved module id (edge
+weights aggregated), so the node count equals the resolved module count.
+When `modules` is empty or absent the graph and sankey stay at the
+file/package granularity the scan produced. The C4 `mermaid` is module-level
+by construction and appears only with two or more resolved modules and at
+least one inter-module edge.
 
 ## The fragment it emits
 
@@ -203,27 +201,33 @@ One fragment, `category: architecture`, `schema: dev-report-fragment/v1`.
   cross-release diff surface. `max_depth` is the longest acyclic dependency
   path (cycle members are treated as depth 0 so a cycle does not make it
   infinite).
-- `body[]` — a `metric-cards` row, the dependency graph as a `d3-graph`
+- `body[]` — `body[0]` is an untagged `Summary` `markdown` (the one-line
+  summary text) followed by an untagged `metric-cards` row; together they lead
+  the default menu group. Then the dependency graph as a `d3-graph`
   (`layout: dag`; cycle members in a distinct group), a `Cycles` table when
   cycles exist, a `Rule violations` table when the analyzer reported any. Above
   300 nodes the graph is replaced by a note (the metrics and tables stay
   authoritative) so the report stays renderable. The tool-free path adds a
-  `sankey` of import flow (weighted by import count), a C4 `mermaid`, a
-  per-file listing `table`, and an ADR `table` + `markdown` index, and may set
-  the graph `layout` to `chord`. The listing and ADR tables carry a
-  `type: "module"` column (see [Module dimension](#module-dimension)); the
-  graph, sankey, and C4 stay module-agnostic.
-- `status` — `ok` (clean), `warn` (cycles or advisory violations), `error`
-  (a blocking layering violation; runner exits `4`).
+  `sankey` of import flow (weighted by import count), a per-file listing
+  `table`, and — only with two or more resolved modules and an inter-module
+  edge — a C4 `mermaid`, and may set the graph `layout` to `chord`. The
+  listing table carries a `type: "module"` column (see
+  [Module dimension](#module-dimension)).
+- `status` — fragment-level: `ok` (clean), `warn` (cycles or advisory
+  violations), `error` (a blocking layering violation; runner exits `4`).
+  Per-section: the graph, over-limit note, sankey, and C4 carry `info`; the
+  `Cycles` table carries `warn`; the `Rule violations` table carries `error`
+  when any violation is blocking, else `warn`; `Summary` and `metric-cards`
+  carry no status.
 
 This report part exposes a top menu grouping its sections: **Dependency
 graph** (the `d3-graph` and the tool-free per-file listing), **Cycles**,
-**Rules**, **Flow** (import-flow `sankey`), **C4** (the `mermaid`), and **ADR**
-(the ADR table + index). The `metric-cards` orientation stays untagged, so the
-renderer collects it under a leading default item labelled with the fragment
-title. Only the groups whose sections exist in a given run appear; the
-tool-wrapper path (no source sections) shows just the default group plus
-**Dependency graph**, **Cycles**, **Rules** as applicable.
+**Rules**, **Flow** (import-flow `sankey`), and **C4** (the `mermaid`). The
+`Summary` and `metric-cards` stay untagged, so the renderer collects them
+under a leading default item labelled with the fragment title. Only the
+groups whose sections exist in a given run appear; the tool-wrapper path (no
+source sections) shows just the default group plus **Dependency graph**,
+**Cycles**, **Rules** as applicable.
 
 The script writes the factual parts; the synthesis role enriches `summary` and
 appends the narrative `markdown`. See

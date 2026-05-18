@@ -60,7 +60,10 @@ bash "$S/run-pact-verify.sh" <provider-dir> <out_dir> <pacts-dir>
 
 It detects the provider stack, runs that stack's pact verifier against the
 consumer pacts (or the broker), and writes `<out_dir>/pact-verify.raw.json`
-plus `<out_dir>/pact-verify.log`. The trailing `TOOL run-pact-verify exit=<n>`
+plus `<out_dir>/pact-verify.log`. The raw JSON carries an additive
+`detected_stack` string (`pact-js` | `pact-jvm` | `pact-python` | `pact-go` |
+`""` when the stack is unknown) alongside the verifier's own fields; the
+existing raw shape is unchanged. The trailing `TOOL run-pact-verify exit=<n>`
 line reports the outcome. Exit `3` means the verifier runtime is missing —
 follow the printed install instructions, do not auto-install. Exit `4` means
 the verifier ran and reported failed interactions; **continue to step 2**, the
@@ -77,7 +80,16 @@ the validator (step 3) sees only fragments, never the raw result or log. Every
 interaction is enumerated in the "Verified interactions" table; `metrics{}`
 carries the counts. `status` is the verdict: `error` if any interaction failed
 (the script exits `4`), `warn` if all passed but one or more had no provider
-state (or nothing was verified), `ok` if all passed and all stated.
+state (or nothing was verified), `ok` if all passed and all stated. The
+interactions table carries a per-section `status` mirroring that verdict
+(`error` if any failed, `warn` if stateless or nothing verified, else `ok`).
+After the table the script always emits a "Suggested provider verification
+stack" markdown section (`status: info`, `menu: Suggested stack`): it explains
+the four parts of a verification stack and names a concrete verifier picked by
+a static dict keyed on the raw `detected_stack`. It is advisory — nothing is
+wired this run. The fragment also carries a `help` markdown string from
+[`references/report-help.md`](references/report-help.md) (the `❓` header
+link), absent only if that file cannot be read.
 
 ### 3. Validate the fragment
 

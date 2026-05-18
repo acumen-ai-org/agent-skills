@@ -30,6 +30,14 @@ SEMGREP_SEVERITY_RANK = {"INFO": 0, "WARNING": 1, "ERROR": 2}
 KNOWN_FLAGS = ("--network", "--gitleaks", "--trufflehog", "--semgrep")
 
 
+def _report_help():
+    help_path = pathlib.Path(__file__).resolve().parent.parent / "references" / "report-help.md"
+    try:
+        return help_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def _load_json(path):
     return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
 
@@ -178,6 +186,7 @@ def main():
                 {
                     "type": "metric-cards",
                     "title": "Network surface",
+                    "menu": "Network",
                     "cards": [
                         {"label": "Outbound calls", "value": len(egress), "delta_metric": "network_egress"},
                         {"label": "Inbound listeners", "value": len(ingress), "delta_metric": "network_ingress"},
@@ -188,6 +197,8 @@ def main():
                 {
                     "type": "table",
                     "title": "Outbound network calls",
+                    "menu": "Network",
+                    "status": "info",
                     "filterable": True,
                     "columns": [
                         {"key": "signature", "label": "Signature", "type": "string", "sortable": True},
@@ -203,6 +214,8 @@ def main():
                 {
                     "type": "table",
                     "title": "Inbound network listeners",
+                    "menu": "Network",
+                    "status": "info",
                     "filterable": True,
                     "columns": [
                         {"key": "signature", "label": "Signature", "type": "string", "sortable": True},
@@ -229,6 +242,7 @@ def main():
                 {
                     "type": "metric-cards",
                     "title": "Secrets",
+                    "menu": "Secrets",
                     "cards": [
                         {"label": "Verified secrets", "value": len(secret_findings), "delta_metric": "secrets"},
                     ],
@@ -238,6 +252,8 @@ def main():
                 {
                     "type": "table",
                     "title": "Secret findings",
+                    "menu": "Secrets",
+                    "status": "error" if secret_findings else "ok",
                     "filterable": True,
                     "columns": [
                         {"key": "rule", "label": "Rule", "type": "string", "sortable": True},
@@ -256,10 +272,17 @@ def main():
             metrics["semgrep_warning"] = counts["warning"]
             metrics["semgrep_info"] = counts["info"]
             metrics["semgrep_findings"] = sum(counts.values())
+            if counts["error"] > 0:
+                taint_status = "error"
+            elif counts["warning"] > 0:
+                taint_status = "warn"
+            else:
+                taint_status = "ok"
             body.append(
                 {
                     "type": "metric-cards",
                     "title": "Semgrep taint/security findings",
+                    "menu": "Taint",
                     "cards": [
                         {"label": "Error", "value": counts["error"], "delta_metric": "semgrep_error"},
                         {"label": "Warning", "value": counts["warning"], "delta_metric": "semgrep_warning"},
@@ -271,6 +294,8 @@ def main():
                 {
                     "type": "table",
                     "title": "Semgrep findings",
+                    "menu": "Taint",
+                    "status": taint_status,
                     "filterable": True,
                     "columns": [
                         {"key": "check", "label": "Check", "type": "string", "sortable": True},
@@ -311,6 +336,10 @@ def main():
         "metrics": metrics,
         "body": body,
     }
+
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(

@@ -33,6 +33,14 @@ REFLECTION_QUESTIONS = [
 NO_DOCS_SUMMARY = "No product mission documentation found"
 
 
+def _report_help():
+    help_path = pathlib.Path(__file__).resolve().parent.parent / "references" / "report-help.md"
+    try:
+        return help_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def _no_docs_body():
     questions = "\n".join(f"{i + 1}. {q}" for i, q in enumerate(REFLECTION_QUESTIONS))
     md = (
@@ -53,11 +61,6 @@ def _no_docs_body():
 
 def _documented_body(inventory):
     documents = inventory.get("documents", [])
-    change_inventory = inventory.get("change_inventory", {})
-    changed_areas = change_inventory.get("changed_areas", [])
-    log_themes = change_inventory.get("log_themes", [])
-
-    body = []
 
     doc_rows = [
         {
@@ -67,10 +70,11 @@ def _documented_body(inventory):
         }
         for doc in documents
     ]
-    body.append(
+    return [
         {
             "type": "table",
             "title": "Mission documents found",
+            "status": "info",
             "columns": [
                 {"key": "path", "label": "Path", "type": "string", "sortable": True},
                 {"key": "words", "label": "Words", "type": "number", "sortable": True},
@@ -79,56 +83,7 @@ def _documented_body(inventory):
             "rows": doc_rows,
             "defaultSort": {"key": "words", "dir": "desc"},
         }
-    )
-
-    if changed_areas:
-        body.append(
-            {
-                "type": "table",
-                "title": "Changed areas (pending mission mapping)",
-                "filterable": True,
-                "columns": [
-                    {"key": "area", "label": "Area", "type": "string", "sortable": True},
-                    {
-                        "key": "files_changed",
-                        "label": "Files changed",
-                        "type": "number",
-                        "sortable": True,
-                    },
-                ],
-                "rows": [
-                    {
-                        "area": entry.get("area", ""),
-                        "files_changed": int(entry.get("files_changed", 0)),
-                    }
-                    for entry in changed_areas
-                ],
-                "defaultSort": {"key": "files_changed", "dir": "desc"},
-            }
-        )
-
-    if log_themes:
-        sample = log_themes[:50]
-        listed = "\n".join(f"- {entry.get('subject', '')}" for entry in sample)
-        more = (
-            f"\n\n_…and {len(log_themes) - len(sample)} more commit subjects._"
-            if len(log_themes) > len(sample)
-            else ""
-        )
-        body.append(
-            {
-                "type": "markdown",
-                "title": "Recent change themes",
-                "md": (
-                    "Commit subjects in range "
-                    f"`{change_inventory.get('ref_range', '')}` awaiting "
-                    "mapping to mission goals by the `mission-alignment` "
-                    f"role:\n\n{listed}{more}"
-                ),
-            }
-        )
-
-    return body
+    ]
 
 
 def main():
@@ -201,6 +156,10 @@ def main():
         },
         "body": body,
     }
+
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(

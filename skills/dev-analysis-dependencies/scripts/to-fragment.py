@@ -61,6 +61,19 @@ def severity_from_cvss(score):
     return "low"
 
 
+def _report_help():
+    help_path = (
+        pathlib.Path(__file__).resolve().parent
+        / ".."
+        / "references"
+        / "report-help.md"
+    )
+    try:
+        return help_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def load_json(path):
     try:
         return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
@@ -391,6 +404,7 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
             {
                 "type": "table",
                 "title": "Vulnerable libraries (grouped; expand for CVEs)",
+                "status": status,
                 "filterable": True,
                 "columns": [
                     {"key": "library", "label": "Library", "type": "string", "sortable": True},
@@ -411,10 +425,9 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
                                 "library": finding["cve"],
                                 "versions": finding["fixed"] or "—",
                                 "severity": finding["severity"],
-                                "count": finding.get("cvss")
-                                if isinstance(finding.get("cvss"), (int, float))
-                                else 0,
-                                "ecosystem": ", ".join(sorted(finding["sources"])),
+                                "count": 1,
+                                "ecosystem": ", ".join(sorted(finding["sources"]))
+                                or finding["ecosystem"],
                             }
                             for finding in sorted(
                                 library["findings"],
@@ -427,7 +440,7 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
                     }
                     for library in libraries
                 ],
-                "defaultSort": {"key": "severity", "dir": "asc"},
+                "defaultSort": {"key": "count", "dir": "desc"},
             }
         )
 
@@ -437,6 +450,7 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
             {
                 "type": "table",
                 "title": "Rust unsafe surface (cargo-geiger)",
+                "status": "warn" if geiger_total > 0 else "ok",
                 "filterable": True,
                 "columns": [
                     {"key": "package", "label": "Crate", "type": "string", "sortable": True},
@@ -447,7 +461,7 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
             }
         )
 
-    return {
+    fragment = {
         "schema": "dev-report-fragment/v1",
         "id": fragment_id,
         "category": "dependencies",
@@ -464,7 +478,11 @@ def build_fragment(fragment_id, deduped, sbom_components, geiger_rows, geiger_to
         .strftime("%Y-%m-%dT%H:%M:%SZ"),
         "metrics": metrics,
         "body": body,
-    }, status
+    }
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
+    return fragment, status
 
 
 def main():

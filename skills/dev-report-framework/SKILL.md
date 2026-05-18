@@ -58,18 +58,20 @@ load from the network on first open (cached after).
 One JSON object per fragment. Required: `schema`
 (`"dev-report-fragment/v1"`), `id` (`[a-z0-9-]+`), `category` (fixed enum:
 `architecture | evolution | dependencies | quality | security | schema |
-contracts | mission | test-coverage | test-reports | overview`), `title`,
-`summary`, `status` (`ok|info|warn|error`), `producer`, `generated_at`,
-`body[]`. Optional: `severity` (0–100), `metrics{}` (flat `string→number`, the
-diff surface). Each `body[]` element is one of ten typed sections (`markdown`,
-`table`, `key-value`, `metric-cards`, `d3-graph`, `sankey`, `treemap`,
-`heatmap`, `mermaid`, `image`); an unknown type renders a visible placeholder,
-never a failure. A section MAY also carry `view` (`"release"|"production"`,
-absent ⇒ `"release"`), `menu` (a non-empty top-menu group label),
-`module` (an opaque module-id tag), and `files[]`
-(producer-embedded excerpts opened in a preview modal). A `table` row MAY
-carry `children[]` (expandable subrows) and a `table` column MAY be
-`type:"file"` or `type:"module"`.
+contracts | mission | test-coverage | test-reports | overview | report`),
+`title`, `summary`, `status` (`ok|info|warn|error`), `producer`,
+`generated_at`, `body[]`. Optional: `severity` (0–100), `help` (markdown — a
+`❓` link to a consolidated `help.html`), `metrics{}` (flat `string→number`,
+the diff surface). Each `body[]` element is one of ten typed sections
+(`markdown`, `table`, `key-value`, `metric-cards`, `d3-graph`, `sankey`,
+`treemap`, `heatmap`, `mermaid`, `image`); an unknown type renders a visible
+placeholder, never a failure. A section MAY also carry `status`
+(`ok|info|warn|error` — a heading icon), `help` (a short string — heading
+tooltip + `help.html` note), `view` (`"release"|"production"`, absent ⇒
+`"release"`), `menu` (a non-empty top-menu group label), `module` (an opaque
+module-id tag), and `files[]` (producer-embedded excerpts opened in a preview
+modal). A `table` row MAY carry `children[]` (expandable subrows) and a
+`table` column MAY be `type:"file"`, `type:"module"`, or `type:"link"`.
 
 Full rules and one filled example per type:
 [`references/fragment-schema.md`](references/fragment-schema.md). Rendered
@@ -80,24 +82,28 @@ behavior per type: [`references/section-types.md`](references/section-types.md).
 
 The shell is titled **Release candidate report**.
 
-- **Title.** The displayed report title is
-  `YYYY-MM-DD · <release-id> · N commits`, where the date is the
-  `release.created_at` date, `<release-id>` is the release id (the version),
-  and `N` is `--commits`. Without `--commits` it is
-  `YYYY-MM-DD · <release-id>`. The vcs-ref, label, and SHA stay in the
-  manifest but are not the rendered title. A status badge follows the title,
-  read from the embedded `releases.json`: `✓ latest` (ok-green) when the
-  shown release is `releases.json[0]` (newest by `created_at`), otherwise
-  `⚠ superseded — latest is <newest-id>` (warn-amber) so a stale report file
-  is obvious. The badge text carries the state (not color alone).
+- **Title.** The displayed report title is `YYYY-MM-DD · <release-id>`, where
+  the date is the `release.created_at` date and `<release-id>` is the release
+  id (the version). `--commits` adds an `N commits` second muted line; without
+  it there is no commit line. The vcs-ref, label, and SHA stay in the manifest
+  but are not the rendered title. A status badge follows the title only when
+  the shown release is stale: `⚠ superseded — latest is <newest-id>`
+  (warn-amber) when the shown release is not `releases.json[0]` (newest by
+  `created_at`), read from the embedded `releases.json`. The newest release
+  shows no badge — the absence is the "latest" signal (no `✓ latest` chip).
+  Roll-up indicators are icon-prefixed counts (`✅ 12`, `⚠️ 4`).
 - **Two columns, always.** Every fragment renders as two fixed side-by-side
   columns: left **This release** (the state after this release — all
   `view:"release"`/untagged sections in order), right **vs production** (the
   difference this release makes to production, the release-candidate's diff
   against the production branch, conceptually `production..main` — all
-  `view:"production"` sections in order). An empty column shows
-  `— nothing for this view —`. This is permanent and distinct from the
-  previous-releases toggle, an unrelated cross-release history feature.
+  `view:"production"` sections in order). An empty left column shows
+  `— nothing for this view —`; an empty right column shows that string only
+  when a production baseline exists, else `No previous production to compare
+  with` (baseline = some embedded `releases.json` entry's `id` differs from
+  the shown id; renderer-owned, never producer-emitted). This is permanent and
+  distinct from the previous-releases toggle, an unrelated cross-release
+  history feature.
 - **Show/hide previous releases.** The sidebar button (labelled
   `Show/hide previous releases`) toggles the second pane that loads the same
   fragment `id` from a sibling release, with the metric Δ table and `◀ ▶`
@@ -106,8 +112,21 @@ The shell is titled **Release candidate report**.
   "needs the report served" message and the current release still renders
   fully.
 - **Overview landing.** A `category:"overview"` fragment is pinned first in
-  the left nav and is the default page on load (lexically-first `id` if
-  several). It renders like any fragment.
+  the left nav, a `category:"report"` second, the rest lexical; the overview
+  fragment (lexically-first `id` if several) is the default page on load. It
+  renders like any fragment.
+- **Nav areas.** The left nav groups categories by area: `test-coverage` and
+  `test-reports` collapse under one `Tests` head with a combined count and the
+  worst member status; every other category is its own area. Links still route
+  by their real `category`/`id`.
+- **Section status + help.** A section's `status` prepends `✅`/`ℹ️`/`⚠️`/`🚨`
+  to its heading; a non-empty fragment `help` (markdown) or any section `help`
+  adds a `❓` header link to a consolidated `help.html` at the report root
+  (section `help` is also the heading tooltip).
+- **Provenance.** A `🪜` header toggle reveals Skill/Tool/Version, the
+  `YYYY-MM-DD HH:MM UTC` Generated time, and a `skills/<skill>/` source path.
+- **Graphs pan/zoom.** Every `d3-graph` layout pans/zooms; `Reset view`
+  restores the viewport. Heatmaps render as accessible HTML tables.
 - **Top menu (producer-declared, current part only).** The in-content top
   menu is computed from the **currently-displayed** fragment: the distinct
   section `menu` labels in first-appearance order across its `body[]`, with a
@@ -162,6 +181,13 @@ Put every fragment a producer emitted into one staging dir (flat, `*.json`).
 The build reads each fragment's `category` and lays it out under
 `data/<category>/`; you do not pre-create the category folders.
 
+The producer pipeline is fixed-order: every `dev-analysis-*`/`dev-test-*`
+producer first, then `dev-report-overview`, then `dev-report-status` (the
+`report-status` self-check fragment) **after** the overview, then this build.
+The overview reads every producer fragment and `dev-report-status` reports
+whether they ran, so both come after the producers and `dev-report-status`
+after `dev-report-overview`.
+
 ### 2. Validate
 
 ```bash
@@ -193,18 +219,31 @@ written (see [Exit codes](#exit-codes)).
 ### 4. Verify
 
 Open `reports/<release-id>/index.html` (double-click). Confirm: the title
-reads `YYYY-MM-DD · <release-id>[ · N commits]` followed by a
-`✓ latest`/`⚠ superseded` badge; an `overview` fragment (if any) is
-pinned first and shown on load; the left nav lists categories with status dots
-and a per-category roll-up; every fragment shows the two **This release** /
-**vs production** columns; a fragment whose sections carry `menu` labels
-shows the producer-declared top menu (untagged sections under a leading
-default item) and switching menu items swaps the shown sections; at least one
-non-trivial body type (graph/table/heatmap) draws. If a
-second release exists, serve the report (`python3 -m http.server`), toggle
-**Show/hide previous releases**, and confirm the right pane loads the
-previous release and the metric Δ table appears; on a `file://` page that
-pane shows the "needs the report served" message instead.
+reads `YYYY-MM-DD · <release-id>` with `N commits` on a second line when
+`--commits` was passed and a `⚠ superseded` badge **only** if a newer
+release exists (no badge = latest); roll-up indicators are icon-prefixed
+counts; an `overview` fragment (if any) is pinned first and shown on load, a
+`report` fragment second; the left nav groups categories by area (`Tests`
+collapses `test-coverage`+`test-reports`) with a combined count; every
+fragment shows the two **This release** / **vs production** columns (an empty
+right column reads `No previous production to compare with` on a
+single-release report); a section with `status` shows a heading icon; a
+fragment/section with `help` shows the `❓` header link opening `help.html`;
+the `🪜` toggle reveals the provenance panel with a `YYYY-MM-DD HH:MM UTC`
+timestamp; a `d3-graph` pans/zooms and `Reset view` recenters; a `heatmap`
+draws as an HTML table; a `menu`-tagged fragment shows the top menu and
+switching items swaps sections. If a second release exists, serve the report
+(`python3 -m http.server`), toggle **Show/hide previous releases**, and
+confirm the right pane loads the previous release and the metric Δ table
+appears; on a `file://` page that pane shows the "needs the report served"
+message instead.
+
+Pipeline preconditions the orchestrator must satisfy (verify before the
+build): the orchestrator produced `build-status.json` and ran
+`dev-report-status` after `dev-report-overview` (a `report` `report-status`
+fragment is staged), and it seeded `dev-report-build --modules` from
+`python3 ${CLAUDE_PLUGIN_ROOT}/scripts/modules.py list` — omitting `--modules`
+when `dev-process.json` `modules` is non-empty is a defect.
 
 ## Apply design
 
@@ -285,6 +324,7 @@ reports/
 └── <release-id>/
     ├── index.html                # shell; data island holds releases.json always,
     │                             #   manifest+fragments too unless --no-embed
+    ├── help.html                 # consolidated help; help island always embedded
     ├── assets/{app.js,app.css}   # copied verbatim from the Skill
     └── data/
         ├── manifest.json         # nav tree + rollup + release identity

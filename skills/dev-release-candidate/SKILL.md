@@ -47,9 +47,9 @@ vocabulary (see [Exit codes](#exit-codes)).
 
 ```
 - [ ] A.  Create release candidate branch → release_candidate_branch.sh + scope.sh
-- [ ] B1. Analysis + review               → analysis_plan.py + (sub-agents | run_tool.sh) + analysis_gate.py
+- [ ] B1. Analysis + review               → analysis_plan.py + (sub-agents | run_tool.sh) + analysis_gate.py + build-status.json
 - [ ] B2. Changelog / notes               → configured generator, else skip
-- [ ] B3. Aggregate reports               → configured aggregator, else skip
+- [ ] B3. Aggregate reports               → overview → status → modules.py list → dev-report-build
 - [ ] B4. Release candidate commit        → release_candidate_commit.sh
 ```
 
@@ -103,6 +103,24 @@ Exit 3 → a non-advisory blocking tool failed: stop, keep all report files,
 surface `OUT/_summary.md`. Exit 0 → gate passed (an empty plan passes — a
 zero-tool repo still produces a valid release candidate).
 
+Then write `build-status.json` into the **work dir** `$OUT` (the parent that
+holds the per-producer `OUT/<id>.exit` files — **not** the staging fragments
+dir, which the validator globs for `*.json`). One row per producer entry,
+schema `dev-report-build-status/v1`:
+
+```json
+{ "schema": "dev-report-build-status/v1", "release": "<release-id>",
+  "generated_at": "<ISO-8601>",
+  "producers": [ { "skill": "<entry skill>", "fragment_id": "<entry report id>",
+    "status": "ok|failed|skipped", "exit_code": <int from OUT/<id>.exit>,
+    "message": "<the producer's trailing stderr / last captured line>" } ] }
+```
+
+Map each `OUT/<id>.exit` code: `0` → `ok`; the documented tool/Docker-missing
+code `3` → `skipped`; any other non-zero → `failed`. `message` is the last
+line you already captured for that producer in `OUT/<report>`. This file is
+the input to the `dev-report-status` step below.
+
 ### B2. Generate changelog & release notes
 
 Read `releaseNotes.generate`. If `run` is set:
@@ -116,9 +134,35 @@ and continue. A real no-op, not a failure.
 
 ### B3. Aggregate reports
 
-Read `reports.aggregate`. Same rule as B2: run the configured command/skill if
-set (it should read `reports.outputDir` and write `reports.viewerPath`);
-otherwise log `B3 skipped — no reports.aggregate configured` and continue.
+The report pipeline is **fixed-order**: every `dev-analysis-*`/`dev-test-*`
+producer first (B1), then `dev-report-overview`, then `dev-report-status`
+last, then `dev-report-build`. Run them in exactly that order — the overview
+reads every producer fragment, and `dev-report-status` reports whether they
+ran, so both must come after the producers and `dev-report-status` after the
+overview.
+
+1. **Overview.** Run `dev-report-overview` against the staging fragments dir
+   (see its `SKILL.md`); it stages `overview.fragment.json`.
+2. **Status.** Run `dev-report-status` (see its `SKILL.md`) with the
+   `build-status.json` written in B1 and the same staging fragments dir; it
+   stages `report-status.fragment.json`. Run it **after** the overview and
+   before the build.
+3. **Modules.** Resolve the module set before building:
+
+   ```bash
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/modules.py" list \
+     --config "$DEV_RELEASE_REPO/dev-process.json" --repo "$DEV_RELEASE_REPO"
+   ```
+
+   It prints one module id per line. Pass them to `dev-report-build` verbatim
+   as a comma-separated `--modules` list. **Omitting `--modules` when
+   `dev-process.json` `modules` is non-empty is a defect** — the module
+   filter would be missing from the report.
+4. **Build.** Run the configured `reports.aggregate` command/skill (it should
+   read `reports.outputDir`, write `reports.viewerPath`, and invoke
+   `dev-report-build` with the `--modules` list from step 3); otherwise log
+   `B3 skipped — no reports.aggregate configured` and continue. A real no-op,
+   not a failure.
 
 ### B4. Create the release-candidate commit
 
@@ -150,7 +194,9 @@ process, describe it; do **not** perform the external steps here.
 
 - Local `release-candidate` branch with the release-candidate commit.
 - `reports.outputDir/`: `scope.json`, `commits.txt`, `changed-files.txt`,
-  per-tool reports, `_plan.jsonl`, `_gate.json`, `_summary.md`.
+  per-tool reports, `_plan.jsonl`, `_gate.json`, `_summary.md`,
+  `build-status.json` (the per-producer outcome roll-up `dev-report-status`
+  consumes — work dir, never the staging fragments dir).
 
 ## Failure modes
 

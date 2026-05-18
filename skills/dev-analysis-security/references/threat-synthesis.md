@@ -75,6 +75,11 @@ insert these `body[]` sections, in this order, before all script sections
   "md": "<1-3 sentences: Semgrep taint source→sink findings tied to the network surface, or 'No Semgrep taint findings; egress/ingress reported by static signature only.'>" }
 ```
 
+The Skill tags each of these three inserted sections `"menu": "Assessment"`
+when it merges them, grouping the narrative under its own top-menu item
+alongside the script's `Network`, `Secrets`, and `Taint` groups. You produce
+the prose; the merge step owns the menu tag.
+
 The `summary` line template:
 
 ```

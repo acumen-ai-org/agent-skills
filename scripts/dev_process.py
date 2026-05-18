@@ -77,6 +77,11 @@ DEFAULT = {
         "provider": "none",
         "prefix": "releases/${releaseId}",
     },
+    "azureDevOps": {
+        "organization": None,
+        "project": None,
+        "baseUrl": None,
+    },
     "modules": [],
 }
 

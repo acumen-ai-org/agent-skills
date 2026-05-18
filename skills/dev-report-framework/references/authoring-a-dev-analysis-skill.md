@@ -12,7 +12,9 @@ renders it generically; no framework change is ever needed for a new producer.
 - [Script vs synthesis split](#script-vs-synthesis-split)
 - [Choosing status and severity](#choosing-status-and-severity)
 - [Designing metrics for the diff](#designing-metrics-for-the-diff)
+- [view — which column](#view--which-column)
 - [Picking section types](#picking-section-types)
+- [Behavior-shape before/after pair](#behavior-shape-beforeafter-pair)
 - [The feedback loop](#the-feedback-loop)
 - [Worked minimal producer](#worked-minimal-producer)
 - [Menu groups (optional)](#menu-groups-optional)
@@ -79,6 +81,25 @@ release-over-release delta is meaningful:
 - **Pair a card with its metric.** A `metric-cards` card with
   `delta_metric:"cycle_count"` shows ▲/▼ automatically in split mode.
 
+## view — which column
+
+Binding rule for setting a section's `"view"`:
+
+- A section describing the **current post-release state** (the state after
+  this release) ⇒ `"view":"release"` (or omit it — `release` is the default).
+- A section describing the **delta against production** (what this release
+  changes versus the production branch) ⇒ `"view":"production"`.
+- A fact that is inherently both ⇒ emit **two sections**, one per view, each
+  carrying only its half.
+
+Set `view` deterministically in the script wherever the column is known from
+the data; do not guess. A producer **never** emits an empty-column
+placeholder — when a fragment has no `production`-view section the renderer
+and the vs-production logic own the empty-column message
+(`— nothing for this view —`, or `No previous production to compare with`
+when there is no production baseline). Your job is only to tag the sections
+you do emit.
+
 ## Picking section types
 
 Map facts to the closest of the nine types
@@ -86,7 +107,9 @@ Map facts to the closest of the nine types
 
 - counts/measures a reader scans first → `metric-cards`;
 - tabular findings → `table` (set `filterable` for long lists);
-- a graph of relationships → `d3-graph` (`dag` for layered, `force` otherwise);
+- a graph of relationships → `d3-graph` (`dag` for layered, `force`
+  otherwise) — for a large graph aggregate to **module granularity**; the
+  renderer pans/zooms but a module-level graph is the readable default;
 - volume flowing between stages → `sankey`;
 - size/share of a whole → `treemap`;
 - a label×label matrix → `heatmap`;
@@ -96,6 +119,17 @@ Map facts to the closest of the nine types
 
 Order `body[]` for a reader: cards first, then detail, narrative last. Unknown
 types are tolerated but never emit one deliberately — it ships a placeholder.
+
+## Behavior-shape before/after pair
+
+To make an architectural, security, or schema shift legible, emit a
+`mermaid view:"production"` (prior shape) paired with a `mermaid view:"release"`
+(new shape) under the **same** `menu` label, at the same abstraction level —
+the framework's two-column layout renders them side by side with no contract
+or renderer change. Full authoring rules (same diagram type/granularity,
+behavior not raw diff, single-`release` diagram when there is no honest
+"before", mandatory `verify_mermaid.py` pass) are in
+[before-after-mermaid.md](before-after-mermaid.md).
 
 ## The feedback loop
 
@@ -156,13 +190,19 @@ shell shows a global `Module:` filter; opt in so it narrows your fragment:
 
 - Tag a whole section with `"module": "<id>"`, or give a `table` a column with
   `"type": "module"` whose cells are module ids.
-- Never invent or parse ids. Resolve a repo-relative path with the shared
-  resolver: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/modules.py" id <path>
-  --config <repo>/dev-process.json`. No config / empty `modules` ⇒ it returns
-  `root` for everything (the dimension is inert and the selector hides itself).
 - Untagged sections and empty module cells are never filtered (module-agnostic
   content always shows). Opting in is optional — a fragment that tags nothing
   simply isn't module-filterable.
+
+**Binding:** a module-aware producer **always** resolves a repo-relative path
+to a module id through the shared resolver — `python3
+"${CLAUDE_PLUGIN_ROOT}/scripts/modules.py" id <path> --config
+<repo>/dev-process.json` — and **never** hand-tags or parses ids itself.
+Resolve every path the same way so one repo's module taxonomy is consistent
+across every producer. With no config or an empty `modules` the resolver
+returns `root` for everything; emitting `root` everywhere is the **only**
+acceptable no-modules state (the selector then hides itself). Never invent an
+id, never special-case a path, never fall back to a literal string.
 
 ## Out of scope
 

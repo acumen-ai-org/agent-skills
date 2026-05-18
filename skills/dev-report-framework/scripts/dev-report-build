@@ -14,6 +14,11 @@ reports/releases.json are always written too. The releases.json content is
 embedded under the data-island key "releases.json" in both embed and
 --no-embed modes.
 
+A sibling help.html holds a consolidated report-help page built from every
+fragment's optional top-level "help" markdown and per-section "help" strings;
+its dev-report-help/v1 JSON island is embedded in both embed and --no-embed
+modes (it is small).
+
 --design FILE reads FILE, extracts every CSS :root{...} block (fenced ```css
 or raw), and injects the concatenated rules as one <style id="design-override">
 immediately before </head> so it overrides the default app.css theme variables.
@@ -53,18 +58,22 @@ RELEASE_ID_ALLOWED = set(
 DATA_ISLAND_PLACEHOLDER = (
     '<script id="report-data" type="application/json">{}</script>'
 )
+HELP_ISLAND_PLACEHOLDER = (
+    '<script id="help-data" type="application/json">{}</script>'
+)
 CATEGORY_LABELS = {
     "architecture": "Architecture",
     "evolution": "Evolution",
     "dependencies": "Dependencies",
     "quality": "Quality",
     "security": "Security",
-    "schema": "Schema",
+    "schema": "Schema diff",
     "contracts": "Contracts",
     "mission": "Mission",
     "test-coverage": "Test coverage",
     "test-reports": "Test reports",
     "overview": "Overview",
+    "report": "Report",
 }
 
 
@@ -144,6 +153,37 @@ def build_manifest(parsed, release, modules):
     if modules:
         manifest["modules"] = modules
     return manifest
+
+
+def build_help_island(parsed):
+    entries = []
+    for _, fragment in parsed:
+        category = fragment["category"]
+        fragment_id = fragment["id"]
+        sections = []
+        for index, section in enumerate(fragment.get("body", [])):
+            section_help = section.get("help")
+            if isinstance(section_help, str) and section_help:
+                sections.append(
+                    {
+                        "anchor": f"frag-{category}-{fragment_id}-sec-{index}",
+                        "index": index,
+                        "title": section.get("title", ""),
+                        "help": section_help,
+                    }
+                )
+        fragment_help = fragment.get("help")
+        has_fragment_help = isinstance(fragment_help, str) and fragment_help
+        if has_fragment_help or sections:
+            entries.append(
+                {
+                    "anchor": f"frag-{category}-{fragment_id}",
+                    "title": fragment.get("title", fragment_id),
+                    "help": fragment.get("help", ""),
+                    "sections": sections,
+                }
+            )
+    return {"schema": "dev-report-help/v1", "entries": entries}
 
 
 def write_json(path, payload):
@@ -313,6 +353,15 @@ def main():
                 "</head>", design_override + "</head>", 1
             )
         (staging / "index.html").write_text(index_html, encoding="utf-8")
+
+        help_html = (assets_dir / "help.html").read_text(encoding="utf-8")
+        help_island = (
+            '<script id="help-data" type="application/json">'
+            + json.dumps(build_help_island(parsed), ensure_ascii=False)
+            + "</script>"
+        )
+        help_html = help_html.replace(HELP_ISLAND_PLACEHOLDER, help_island)
+        (staging / "help.html").write_text(help_html, encoding="utf-8")
 
         final = reports_root / release_id
         if final.exists():

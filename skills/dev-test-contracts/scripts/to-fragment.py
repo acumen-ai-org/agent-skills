@@ -6,7 +6,12 @@ Usage: to-fragment.py <id> <raw-result.json> <out-fragment.json>
 Emits exactly one dev-report-fragment/v1 object in category "contracts".
 `status` is the verification verdict: "error" if any interaction failed,
 "warn" if every interaction passed but at least one carried no provider
-state, otherwise "ok". Every interaction is enumerated in a table body.
+state, otherwise "ok". Every interaction is enumerated in a table body, whose
+section `status` mirrors the verdict (error if any failed, warn if stateless
+or nothing verified, else ok). An always-emitted "Suggested provider
+verification stack" markdown section follows the table; its verifier line is
+chosen from a static dict keyed by the raw `detected_stack` field and is
+advisory only — nothing is wired this pass.
 
 Exit codes:
   0  fragment written; status ok/warn
@@ -22,6 +27,70 @@ from datetime import datetime, timezone
 SCHEMA_VERSION = "dev-report-fragment/v1"
 FAILURE_STATUSES = {"failed", "failure", "error"}
 SUCCESS_STATUSES = {"passed", "success", "ok", "successful"}
+
+VERIFIER_LINES = {
+    "pact-js": (
+        "the `@pact-foundation/pact` Verifier (Node), invoked from an "
+        "`npm run pact:verify` script"
+    ),
+    "pact-jvm": (
+        "the `pact-jvm-provider` plugin run via the `pactVerify` Gradle task "
+        "(or the Maven `pact:verify` goal)"
+    ),
+    "pact-python": (
+        "the `pact-verifier` CLI from `pact-python`, pointed at the running "
+        "provider base URL"
+    ),
+    "pact-go": (
+        "the `pact-go` verifier (the `VerifyProvider` helper) run from a Go "
+        "test"
+    ),
+    "": (
+        "the language-agnostic `pact-provider-verifier` Docker image "
+        "(`pactfoundation/pact-cli`), driven over HTTP against the running "
+        "provider"
+    ),
+}
+
+
+def _report_help():
+    help_path = pathlib.Path(__file__).resolve().parent / ".." / "references" / "report-help.md"
+    try:
+        return help_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _suggested_stack_section(detected_stack):
+    key = detected_stack if detected_stack in VERIFIER_LINES else ""
+    verifier_line = VERIFIER_LINES[key]
+    detected_label = detected_stack or "unknown"
+    md = (
+        "A provider verification stack has four parts:\n"
+        "\n"
+        "1. **A verifier** — replays each consumer pact against the running "
+        "provider.\n"
+        "2. **Provider-state handlers** — set up the precondition each "
+        "interaction names before it is replayed.\n"
+        "3. **A contract source** — a Pact Broker, or pact files published as "
+        "a CI artifact.\n"
+        "4. **A CI job + a `can-i-deploy` gate** — runs the verifier on every "
+        "change and blocks the release until the contracts pass.\n"
+        "\n"
+        f"Detected provider stack: `{detected_label}`. Suggested verifier: "
+        f"{verifier_line}.\n"
+        "\n"
+        "This is **advisory only**: nothing is wired or run this verification "
+        "pass. It is a starting point for the team to stand up provider "
+        "verification, not infrastructure this Skill installs."
+    )
+    return {
+        "type": "markdown",
+        "title": "Suggested provider verification stack",
+        "status": "info",
+        "menu": "Suggested stack",
+        "md": md,
+    }
 
 
 def collect_interactions(node):
@@ -189,6 +258,17 @@ def main():
     elif status == "warn":
         severity = 20
 
+    if failed > 0:
+        table_status = "error"
+    elif total == 0 or stateless > 0:
+        table_status = "warn"
+    else:
+        table_status = "ok"
+
+    detected_stack = raw.get("detected_stack") if isinstance(raw, dict) else ""
+    if not isinstance(detected_stack, str):
+        detected_stack = ""
+
     body = [
         {
             "type": "metric-cards",
@@ -206,6 +286,7 @@ def main():
         {
             "type": "table",
             "title": "Verified interactions",
+            "status": table_status,
             "filterable": True,
             "columns": [
                 {"key": "consumer", "label": "Consumer", "type": "string", "sortable": True},
@@ -226,6 +307,7 @@ def main():
             ],
             "defaultSort": {"key": "result", "dir": "desc"},
         },
+        _suggested_stack_section(detected_stack),
     ]
 
     fragment = {
@@ -250,6 +332,10 @@ def main():
         },
         "body": body,
     }
+
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(fragment, indent=2) + "\n", encoding="utf-8")

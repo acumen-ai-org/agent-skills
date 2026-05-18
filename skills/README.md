@@ -23,6 +23,7 @@ Each subdirectory is one self-contained Skill: a `SKILL.md` plus its
 | [dev-report-release-diff](dev-report-release-diff/SKILL.md) | Turn a `git diff` ref-range into a multi-perspective Slidev deck: collect static diff facts (reusing the shared collectors + schema diff), synthesize 8 curated perspectives, and render one content-to-image illustration per perspective. |
 | [dev-report-overview](dev-report-overview/SKILL.md) | Runs last: reads the assembled fragment set + scope, invokes content-to-image for a scope infographic, and emits the pinned `overview` fragment (infographic + high-level bullets) the framework shows as the report's default landing page. |
 | [dev-report-vs-production](dev-report-vs-production/SKILL.md) | Backfills the empty "vs production" right column for staged fragments that only have a current-state view: LLM-diffs each against its same-id fragment from the previous release (`releases.json[0]`), renders one content-to-image infographic, and appends a `view:"production"` markdown + image section in place. Emits no new fragment; skips fragments with no prior counterpart. Runs before dev-report-overview / dev-report-build. |
+| [dev-report-status](dev-report-status/SKILL.md) | Report build status + AI release-or-not opinion, fed by the orchestrator's build-status.json. |
 
 ## Adding a Skill
 
