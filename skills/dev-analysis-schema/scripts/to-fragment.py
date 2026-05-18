@@ -10,6 +10,14 @@ OASDIFF_VERSION = "1.10.27"
 GRAPHQL_INSPECTOR_VERSION = "5.0.0"
 
 
+def _report_help():
+    help_path = pathlib.Path(__file__).resolve().parent.parent / "references" / "report-help.md"
+    try:
+        return help_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def now_iso():
     return (
         datetime.datetime.now(datetime.timezone.utc)
@@ -137,9 +145,18 @@ def main():
 
     rows = build_rows(diff)
 
+    if not has_diff:
+        changes_status = "ok"
+    elif public_breaking > 0:
+        changes_status = "error"
+    else:
+        changes_status = "warn"
+
     body = [
         {
             "type": "metric-cards",
+            "view": "production",
+            "menu": "Summary",
             "cards": [
                 {
                     "label": "Has diff",
@@ -170,6 +187,9 @@ def main():
             {
                 "type": "table",
                 "title": "Schema changes",
+                "view": "production",
+                "menu": "Changes",
+                "status": changes_status,
                 "filterable": True,
                 "columns": [
                     {"key": "surface", "label": "Surface", "type": "string", "sortable": True},
@@ -188,6 +208,8 @@ def main():
             {
                 "type": "markdown",
                 "title": "Tooling note",
+                "view": "production",
+                "menu": "Summary",
                 "md": (
                     "One or more diff engines were unavailable "
                     "(Docker/Node missing). Coverage is partial; "
@@ -217,6 +239,10 @@ def main():
         },
         "body": body,
     }
+
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(

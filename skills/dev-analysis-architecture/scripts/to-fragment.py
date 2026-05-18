@@ -20,16 +20,20 @@ runner scripts produce:
 The graph becomes a d3-graph body; metrics carry node_count, edge_count,
 cycle_count, max_depth; any reported violation drives status (warn for
 cycles/soft rule findings, error for hard layering violations) and exit 4.
-The tool-free raw additionally carries an import-flow sankey, a C4 mermaid,
-a per-file listing table, and an ADR table + markdown index. Sections carry a
-top-menu group via "menu": the dependency graph and its per-file listing under
-"Dependency graph", cycles under "Cycles", rule violations under "Rules", the
-import-flow sankey under "Flow", the C4 mermaid under "C4", and the ADR table
-and index under "ADR"; the metric-cards orientation stays untagged so the
-renderer collects it under the leading default group (the fragment title). The listing and
-ADR tables carry a type:"module" column whose ids come from the shared
-scripts/modules.py resolver (config from the raw's repo/config location); the
-whole-repo d3-graph, sankey, and C4 mermaid stay module-agnostic.
+The tool-free raw additionally carries an import-flow sankey, a per-file
+listing table, and — when the repo resolves to two or more modules with
+inter-module edges — a C4 mermaid. body[0] is an untagged Summary markdown
+that leads the default menu group, followed by the untagged metric-cards.
+Sections carry a top-menu group via "menu": the dependency graph and its
+per-file listing under "Dependency graph", cycles under "Cycles", rule
+violations under "Rules", the import-flow sankey under "Flow", the C4 mermaid
+under "C4". The Summary and metric-cards stay untagged so the renderer
+collects them under the leading default group (the fragment title). The
+listing table carries a type:"module" column whose ids come from the shared
+scripts/modules.py resolver (config from the raw's repo/config location). When
+the repo defines a non-empty modules set the d3-graph and sankey collapse to
+module granularity; otherwise they stay at file/package granularity. The C4
+mermaid is module-level by construction.
 
 Exit codes:
   0  fragment written; status ok or warn
@@ -70,6 +74,31 @@ def resolve_modules(paths, config):
         module_id = completed.stdout.strip() if completed.returncode == 0 else ""
         ids[path] = module_id or "root"
     return ids
+
+
+def module_count(repo, config):
+    if not config:
+        return 0
+    resolver = plugin_root() / "scripts" / "modules.py"
+    if not resolver.is_file():
+        return 0
+    command = [sys.executable, str(resolver), "list", "--config", config]
+    if repo:
+        command += ["--repo", repo]
+    completed = subprocess.run(command, capture_output=True, text=True, check=False)
+    if completed.returncode != 0:
+        return 0
+    modules = [line for line in completed.stdout.splitlines() if line.strip()]
+    non_root = [module for module in modules if module != "root"]
+    return len(non_root)
+
+
+def _report_help():
+    path = pathlib.Path(__file__).resolve().parent.parent / "references" / "report-help.md"
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 def now_iso():
@@ -427,23 +456,21 @@ def parse_source_inventory(raw):
     layout = raw.get("layout")
     if layout not in ("force", "dag", "chord"):
         layout = None
-    adrs = raw.get("adrs") if isinstance(raw.get("adrs"), list) else []
     c4_mermaid = raw.get("c4_mermaid") if isinstance(raw.get("c4_mermaid"), str) else None
     stacks = raw.get("stacks") if isinstance(raw.get("stacks"), list) else []
+    repo = raw.get("repo") if isinstance(raw.get("repo"), str) else None
     config = raw.get("config") if isinstance(raw.get("config"), str) else None
-    if config is None:
-        repo = raw.get("repo")
-        if isinstance(repo, str):
-            candidate = pathlib.Path(repo) / "dev-process.json"
-            if candidate.is_file():
-                config = str(candidate)
+    if config is None and repo is not None:
+        candidate = pathlib.Path(repo) / "dev-process.json"
+        if candidate.is_file():
+            config = str(candidate)
     extra = {
         "node_meta": node_meta,
         "weights": weights,
         "layout": layout,
-        "adrs": adrs,
         "c4_mermaid": c4_mermaid,
         "stacks": stacks,
+        "repo": repo,
         "config": config,
     }
     return node_ids, edges, [], "collect-structure", extra
@@ -487,8 +514,16 @@ def status_from_violations(cycles, violations):
     return "ok", 0
 
 
-def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
+MENU_GRAPH = "Dependency graph"
+MENU_CYCLES = "Cycles"
+MENU_RULES = "Rules"
+MENU_FLOW = "Flow"
+MENU_C4 = "C4"
+
+
+def build_body(node_ids, edges, cycles, violations, metrics, summary, extra=None):
     body = [
+        {"type": "markdown", "title": "Summary", "md": summary},
         {
             "type": "metric-cards",
             "cards": [
@@ -497,15 +532,8 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
                 {"label": "Cycles", "value": metrics["cycle_count"], "delta_metric": "cycle_count"},
                 {"label": "Max depth", "value": metrics["max_depth"], "delta_metric": "max_depth"},
             ],
-        }
+        },
     ]
-
-    menu_graph = "Dependency graph"
-    menu_cycles = "Cycles"
-    menu_rules = "Rules"
-    menu_flow = "Flow"
-    menu_c4 = "C4"
-    menu_adr = "ADR"
 
     cycle_members = set()
     for cycle in cycles:
@@ -515,31 +543,57 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
     weights = extra.get("weights") if extra else None
     layout = (extra.get("layout") if extra else None) or "dag"
 
-    if len(node_ids) <= GRAPH_NODE_RENDER_LIMIT:
+    module_ids = None
+    repo = extra.get("repo") if extra else None
+    config = extra.get("config") if extra else None
+    if extra is not None and config and module_count(repo, config) >= 1:
+        module_ids = resolve_modules([nid for nid in node_ids if nid], config)
+
+    graph_node_ids, graph_edges, graph_weights, graph_meta = _graph_view(
+        node_ids, edges, weights, node_meta, module_ids
+    )
+
+    if not graph_node_ids:
+        body.append(
+            {
+                "type": "markdown",
+                "menu": MENU_GRAPH,
+                "title": "Module dependency graph",
+                "status": "info",
+                "md": (
+                    "The analyzer reported rule findings without a module "
+                    "graph. The metrics and the rule-violation table remain "
+                    "authoritative."
+                ),
+            }
+        )
+    elif len(graph_node_ids) <= GRAPH_NODE_RENDER_LIMIT:
         graph_nodes = []
-        for node_id in node_ids:
+        for node_id in graph_node_ids:
             if node_id in cycle_members:
                 group = "cycle"
-            elif node_meta and node_id in node_meta:
-                group = node_meta[node_id]["group"]
+            elif graph_meta and node_id in graph_meta:
+                group = graph_meta[node_id]["group"]
             else:
                 group = "module"
-            if node_meta and node_id in node_meta:
-                label = node_meta[node_id]["label"]
+            if graph_meta and node_id in graph_meta:
+                label = graph_meta[node_id]["label"]
             else:
                 label = node_id.split("/")[-1] if "/" in node_id else node_id
             graph_nodes.append({"id": node_id, "label": label, "group": group})
         graph_links = []
-        for source, target in dict.fromkeys(edges):
+        for source, target in dict.fromkeys(graph_edges):
             link = {"source": source, "target": target}
-            if weights and (source, target) in weights:
-                link["value"] = weights[(source, target)]
+            if graph_weights and (source, target) in graph_weights:
+                link["value"] = graph_weights[(source, target)]
             graph_links.append(link)
         body.append(
             {
                 "type": "d3-graph",
-                "menu": menu_graph,
+                "menu": MENU_GRAPH,
                 "title": "Module dependency graph",
+                "status": "info",
+                "help": "Boxes are modules, arrows are import edges; cycle members are grouped apart.",
                 "layout": layout,
                 "nodes": graph_nodes,
                 "links": graph_links,
@@ -549,10 +603,11 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         body.append(
             {
                 "type": "markdown",
-                "menu": menu_graph,
+                "menu": MENU_GRAPH,
                 "title": "Module dependency graph",
+                "status": "info",
                 "md": (
-                    f"Graph has {len(node_ids)} nodes, above the "
+                    f"Graph has {len(graph_node_ids)} nodes, above the "
                     f"{GRAPH_NODE_RENDER_LIMIT}-node inline render limit. "
                     "Metrics and cycle/violation tables remain authoritative."
                 ),
@@ -563,8 +618,9 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         body.append(
             {
                 "type": "table",
-                "menu": menu_cycles,
+                "menu": MENU_CYCLES,
                 "title": "Cycles",
+                "status": "warn",
                 "filterable": True,
                 "columns": [
                     {"key": "members", "label": "Members", "type": "string", "sortable": True},
@@ -579,11 +635,13 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
         )
 
     if violations:
+        violation_status, _ = status_from_violations([], violations)
         body.append(
             {
                 "type": "table",
-                "menu": menu_rules,
+                "menu": MENU_RULES,
                 "title": "Rule violations",
+                "status": violation_status,
                 "filterable": True,
                 "columns": [
                     {"key": "rule", "label": "Rule", "type": "string", "sortable": True},
@@ -606,26 +664,46 @@ def build_body(node_ids, edges, cycles, violations, metrics, extra=None):
     if extra is not None:
         body.extend(
             _source_sections(
-                node_ids,
-                edges,
-                weights,
-                node_meta,
-                extra,
-                {
-                    "graph": menu_graph,
-                    "flow": menu_flow,
-                    "c4": menu_c4,
-                    "adr": menu_adr,
-                },
+                node_ids, edges, weights, node_meta, extra, module_ids
             )
         )
     return body
 
 
-def _source_sections(node_ids, edges, weights, node_meta, extra, menus):
+def _graph_view(node_ids, edges, weights, node_meta, module_ids):
+    if not module_ids:
+        return node_ids, edges, weights, node_meta
+    order = []
+    seen = set()
+    new_meta = {}
+    for node_id in node_ids:
+        mid = module_ids.get(node_id, "root")
+        if mid not in seen:
+            seen.add(mid)
+            order.append(mid)
+            new_meta[mid] = {"label": mid, "group": mid}
+    new_weights = {}
+    new_edges = []
+    edge_seen = set()
+    for source, target in edges:
+        src = module_ids.get(source, "root")
+        dst = module_ids.get(target, "root")
+        if src == dst:
+            continue
+        weight = weights.get((source, target), 1) if weights else 1
+        new_weights[(src, dst)] = new_weights.get((src, dst), 0) + weight
+        if (src, dst) not in edge_seen:
+            edge_seen.add((src, dst))
+            new_edges.append((src, dst))
+    return order, new_edges, new_weights, new_meta
+
+
+def _source_sections(node_ids, edges, weights, node_meta, extra, module_ids):
     sections = []
 
     def group_of(node_id):
+        if module_ids:
+            return module_ids.get(node_id, "root")
         if node_meta and node_id in node_meta:
             return node_meta[node_id]["group"]
         return group_root(node_id)
@@ -640,7 +718,7 @@ def _source_sections(node_ids, edges, weights, node_meta, extra, menus):
 
     if cross:
         flow = cross
-        flow_title = "Import flow between packages"
+        flow_title = "Import flow between modules" if module_ids else "Import flow between packages"
     else:
         flow = {}
         for source, target in edges:
@@ -668,8 +746,9 @@ def _source_sections(node_ids, edges, weights, node_meta, extra, menus):
         sections.append(
             {
                 "type": "sankey",
-                "menu": menus["flow"],
+                "menu": MENU_FLOW,
                 "title": flow_title,
+                "status": "info",
                 "nodes": [{"id": nid, "label": flow_label(nid)} for nid in flow_node_ids],
                 "links": [
                     {"source": src_node, "target": dst_node, "value": value}
@@ -678,31 +757,31 @@ def _source_sections(node_ids, edges, weights, node_meta, extra, menus):
             }
         )
 
-    c4_mermaid = extra.get("c4_mermaid")
-    if not c4_mermaid:
-        c4_mermaid = _default_c4(node_ids, edges, node_meta)
-    sections.append(
-        {
-            "type": "mermaid",
-            "menu": menus["c4"],
-            "title": "C4 context / container",
-            "diagram": c4_mermaid,
-        }
-    )
+    c4_mermaid = extra.get("c4_mermaid") or _c4_from_modules(edges, module_ids)
+    if c4_mermaid:
+        sections.append(
+            {
+                "type": "mermaid",
+                "menu": MENU_C4,
+                "title": "C4 context / container",
+                "status": "info",
+                "diagram": c4_mermaid,
+            }
+        )
 
     config = extra.get("config")
-    adrs = extra.get("adrs") or []
-    adr_paths = [str(adr.get("path", "")) for adr in adrs if str(adr.get("path", ""))]
     listing_paths = [nid for nid in node_ids if nid]
-    module_ids = resolve_modules(
-        sorted(set(adr_paths) | set(listing_paths)), config
+    listing_modules = (
+        module_ids
+        if module_ids is not None
+        else resolve_modules(sorted(set(listing_paths)), config)
     )
 
     if listing_paths:
         sections.append(
             {
                 "type": "table",
-                "menu": menus["graph"],
+                "menu": MENU_GRAPH,
                 "title": "Source files by module",
                 "filterable": True,
                 "columns": [
@@ -718,63 +797,11 @@ def _source_sections(node_ids, edges, weights, node_meta, extra, menus):
                             if node_meta and nid in node_meta
                             else group_root(nid)
                         ),
-                        "module": module_ids.get(nid, "root"),
+                        "module": listing_modules.get(nid, "root"),
                     }
                     for nid in listing_paths
                 ],
                 "defaultSort": {"key": "file", "dir": "asc"},
-            }
-        )
-
-    if adrs:
-        sections.append(
-            {
-                "type": "table",
-                "menu": menus["adr"],
-                "title": "Architecture decision records",
-                "filterable": True,
-                "columns": [
-                    {"key": "title", "label": "Title", "type": "string", "sortable": True},
-                    {"key": "status", "label": "Status", "type": "string", "sortable": True},
-                    {"key": "path", "label": "Path", "type": "string", "sortable": True},
-                    {"key": "module", "label": "Module", "type": "module", "sortable": True},
-                ],
-                "rows": [
-                    {
-                        "title": str(adr.get("title", "")),
-                        "status": str(adr.get("status", "")),
-                        "path": str(adr.get("path", "")),
-                        "module": module_ids.get(str(adr.get("path", "")), "root"),
-                    }
-                    for adr in adrs
-                ],
-                "defaultSort": {"key": "path", "dir": "asc"},
-            }
-        )
-        sections.append(
-            {
-                "type": "markdown",
-                "menu": menus["adr"],
-                "title": "ADR index",
-                "md": (
-                    f"{len(adrs)} architecture decision record(s) found. "
-                    "The table above lists each record's title, status, and path. "
-                    "Statuses other than `accepted` warrant review against the "
-                    "current dependency graph."
-                ),
-            }
-        )
-    else:
-        sections.append(
-            {
-                "type": "markdown",
-                "menu": menus["adr"],
-                "title": "ADR index",
-                "md": (
-                    "No architecture decision records were found under the "
-                    "configured ADR glob set. Recording decisions makes "
-                    "structural drift reviewable across releases."
-                ),
             }
         )
     return sections
@@ -799,27 +826,32 @@ def _break_back_edges(flow):
     return acyclic if acyclic else flow
 
 
-def _default_c4(node_ids, edges, node_meta):
-    groups = []
+def _c4_from_modules(edges, module_ids):
+    if not module_ids:
+        return None
+    modules = []
     seen = set()
-    for node_id in node_ids:
-        group = node_meta[node_id]["group"] if node_meta and node_id in node_meta else group_root(node_id)
-        if group not in seen:
-            seen.add(group)
-            groups.append(group)
-    group_edges = set()
+    for value in module_ids.values():
+        if value not in seen:
+            seen.add(value)
+            modules.append(value)
+    if len(modules) < 2:
+        return None
+    module_edges = set()
     for source, target in edges:
-        src_group = node_meta[source]["group"] if node_meta and source in node_meta else group_root(source)
-        dst_group = node_meta[target]["group"] if node_meta and target in node_meta else group_root(target)
-        if src_group != dst_group:
-            group_edges.add((src_group, dst_group))
-    alias = {group: f"c{index}" for index, group in enumerate(groups)}
-    lines = ["flowchart TD", '  subgraph System["System (containers)"]']
-    for group in groups:
-        lines.append(f'    {alias[group]}["{group}"]')
+        src = module_ids.get(source, "root")
+        dst = module_ids.get(target, "root")
+        if src != dst:
+            module_edges.add((src, dst))
+    if not module_edges:
+        return None
+    alias = {module: f"c{index}" for index, module in enumerate(modules)}
+    lines = ["flowchart TD", '  subgraph System["System (modules)"]']
+    for module in modules:
+        lines.append(f'    {alias[module]}["{module}"]')
     lines.append("  end")
-    for src_group, dst_group in sorted(group_edges):
-        lines.append(f"  {alias[src_group]} --> {alias[dst_group]}")
+    for src_module, dst_module in sorted(module_edges):
+        lines.append(f"  {alias[src_module]} --> {alias[dst_module]}")
     return "\n".join(lines)
 
 
@@ -853,8 +885,7 @@ def main():
         f"{metrics['cycle_count']} cycles, max depth {metrics['max_depth']}."
     )
     if extra is not None:
-        adr_count = len(extra.get("adrs") or [])
-        summary += f" {adr_count} ADR(s); source-scanned (no analyzer)."
+        summary += " Source-scanned (no analyzer)."
 
     fragment = {
         "schema": SCHEMA_VERSION,
@@ -866,8 +897,12 @@ def main():
         "producer": {"skill": SKILL_NAME, "tool": tool_name, "version": "1"},
         "generated_at": now_iso(),
         "metrics": metrics,
-        "body": build_body(node_set, edges, cycles, violations, metrics, extra),
+        "body": build_body(node_set, edges, cycles, violations, metrics, summary, extra),
     }
+
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(fragment, indent=2) + "\n", encoding="utf-8")

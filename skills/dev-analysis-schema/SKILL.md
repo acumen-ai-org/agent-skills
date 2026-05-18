@@ -103,9 +103,9 @@ If — and only if — the fragment's `metrics.hasDiff` is `1`, run the
 feeding it **only** `<out_dir>/schema-diff.json` and the emitted fragment
 (never the full schemas). Replace the fragment's `summary` with the role's
 `## summary` line and append its `## body-markdown` as a
-`{ "type": "markdown", "title": "Assessment" }` section after the table. When
-`hasDiff` is `0` skip this step entirely — the factual `ok` summary stands and
-the role is not invoked.
+`{ "type": "markdown", "title": "Assessment", "menu": "Assessment" }` section
+after the table. When `hasDiff` is `0` skip this step entirely — the factual
+`ok` summary stands and the role is not invoked.
 
 ### 4. Validate
 
@@ -125,7 +125,14 @@ cross-release diff key). `metrics`: `hasDiff`, `publicBreaking`,
 `metric-cards` summary, a filterable `table` of every change
 (surface · visibility · criticality · location · detail), a tooling note if an
 engine was missing, and — after the role runs — an `Assessment` markdown
-section. Status mapping:
+section.
+
+A schema diff **is** the production..main delta, so every script-emitted
+section carries `"view": "production"` — the metric-cards, the `Schema
+changes` table, and the `Tooling note`. There is no release-view section; the
+renderer and the vs-production logic own the empty release column. Top-menu
+groups: `Summary` (cards + tooling note), `Changes` (the schema-changes
+table), and `Assessment` (the role markdown). Status mapping:
 
 | Condition | `status` | Exit |
 | --------- | -------- | ---- |

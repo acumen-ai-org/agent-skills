@@ -75,6 +75,15 @@
         "prefix": { "type": "string" }
       }
     },
+    "azureDevOps": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "organization": { "type": ["string", "null"] },
+        "project": { "type": ["string", "null"] },
+        "baseUrl": { "type": ["string", "null"] }
+      }
+    },
     "modules": { "type": "array", "items": { "type": "string" } }
   },
   "$defs": {

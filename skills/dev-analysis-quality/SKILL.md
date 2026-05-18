@@ -125,7 +125,11 @@ fragment back to the same path.
 
 Follow [`references/code-diff-summary.md`](references/code-diff-summary.md)
 with `difftastic.raw.txt` and `$REF_RANGE`. Its output is the structural
-change narrative; append it as an additional `markdown` body section.
+change narrative; append it as an additional `markdown` body section carrying
+`"menu": "Diff summary"` so it lands under its own top-menu group. The
+Semgrep cards/findings sit under `Findings`, the scc cards/by-language under
+`Metrics`, the policy table under `Policy`; the leading untagged default item
+(named after the fragment title) collects the `quality-synthesis` Assessment.
 `dev-report-release-diff` reuses this same role.
 
 ### 8. Validate

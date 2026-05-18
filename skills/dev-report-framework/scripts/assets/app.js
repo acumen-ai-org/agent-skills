@@ -47,6 +47,13 @@
     return [];
   }
 
+  function hasProductionBaseline() {
+    var current = (state.manifest && state.manifest.release) || {};
+    return embeddedReleases().some(function (entry) {
+      return entry.id != null && entry.id !== current.id;
+    });
+  }
+
   function el(tag, attrs, children) {
     var node = document.createElement(tag);
     if (attrs) {
@@ -74,6 +81,59 @@
     while (node.firstChild) {
       node.removeChild(node.firstChild);
     }
+  }
+
+  function formatDateTime(iso) {
+    if (!iso) {
+      return "";
+    }
+    var date = new Date(iso);
+    if (isNaN(date.getTime())) {
+      return String(iso);
+    }
+    function pad(value) {
+      return value < 10 ? "0" + value : String(value);
+    }
+    return (
+      date.getUTCFullYear() +
+      "-" +
+      pad(date.getUTCMonth() + 1) +
+      "-" +
+      pad(date.getUTCDate()) +
+      " " +
+      pad(date.getUTCHours()) +
+      ":" +
+      pad(date.getUTCMinutes()) +
+      " UTC"
+    );
+  }
+
+  var STATUS_ICON = { ok: "✅", info: "ℹ️", warn: "⚠️", error: "🚨" };
+  var PLACEHOLDER_NO_SECTION = "— nothing for this view —";
+  var PLACEHOLDER_NO_BASELINE = "No previous production to compare with";
+  var CATEGORY_AREA = { "test-coverage": "Tests", "test-reports": "Tests" };
+  var CATEGORY_DISPLAY = {
+    architecture: "Architecture",
+    evolution: "Evolution",
+    dependencies: "Dependencies",
+    quality: "Quality",
+    security: "Security",
+    schema: "Schema diff",
+    contracts: "Contracts",
+    mission: "Mission",
+    "test-coverage": "Test coverage",
+    "test-reports": "Test reports",
+    overview: "Overview",
+    report: "Report"
+  };
+
+  function areaOf(category) {
+    return (
+      CATEGORY_AREA[category.id] ||
+      category.label ||
+      CATEGORY_DISPLAY[category.id] ||
+      category.id
+    );
   }
 
   var state = {
@@ -227,6 +287,47 @@
     });
   }
 
+  function linkAnchor(item) {
+    if (_is_obj_value(item) && _isMenuString(item.href)) {
+      return el("a", {
+        href: String(item.href),
+        target: "_blank",
+        rel: "noopener",
+        text: item.text == null ? String(item.href) : String(item.text)
+      });
+    }
+    return null;
+  }
+
+  function _is_obj_value(value) {
+    return value && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function renderLinkCell(value) {
+    if (Array.isArray(value)) {
+      var td = el("td");
+      value.forEach(function (item, index) {
+        if (index > 0) {
+          td.appendChild(document.createTextNode(", "));
+        }
+        var anchor = linkAnchor(item);
+        if (anchor) {
+          td.appendChild(anchor);
+        } else {
+          td.appendChild(
+            document.createTextNode(item == null ? "" : String(item))
+          );
+        }
+      });
+      return td;
+    }
+    var single = linkAnchor(value);
+    if (single) {
+      return el("td", null, [single]);
+    }
+    return el("td", { text: value == null ? "" : String(value) });
+  }
+
   function renderCell(column, value, files) {
     if (column.type === "file" && value != null) {
       var path = String(value);
@@ -276,6 +377,8 @@
           var td;
           if (column.type === "file" && value != null && files.length) {
             td = renderCell(column, value, files);
+          } else if (column.type === "link") {
+            td = renderLinkCell(value);
           } else {
             td = el("td", { text: value == null ? "" : String(value) });
           }
@@ -554,13 +657,14 @@
   }
 
   function renderD3Graph(section) {
-    var wrap = el("div", { class: "viz" });
+    var wrap = el("div", { class: "viz graph" });
     var width = 760;
     var height = 460;
     var svg = window.d3
       .select(wrap)
       .append("svg")
       .attr("viewBox", "0 0 " + width + " " + height);
+    var zoomLayer = svg.append("g").attr("class", "zoom-layer");
 
     var nodes = (section.nodes || []).map(function (node) {
       return { id: node.id, label: node.label || node.id, group: node.group };
@@ -576,10 +680,10 @@
     var color = window.d3.scaleOrdinal(window.d3.schemeTableau10);
 
     if (section.layout === "chord") {
-      renderD3GraphChord(svg, width, height, nodes, links, color);
+      renderD3GraphChord(zoomLayer, width, height, nodes, links, color);
     } else {
       renderD3GraphForce(
-        svg,
+        zoomLayer,
         width,
         height,
         nodes,
@@ -588,6 +692,26 @@
         section.layout === "dag" ? "dag" : "force"
       );
     }
+
+    var zoom = window.d3
+      .zoom()
+      .scaleExtent([0.2, 8])
+      .on("zoom", function (event) {
+        zoomLayer.attr("transform", event.transform);
+      });
+    svg.call(zoom);
+
+    var reset = el("button", {
+      class: "graph-reset",
+      type: "button"
+    }, ["Reset view"]);
+    reset.addEventListener("click", function () {
+      svg
+        .transition()
+        .duration(250)
+        .call(zoom.transform, window.d3.zoomIdentity);
+    });
+    wrap.appendChild(reset);
 
     return wrap;
   }
@@ -750,18 +874,10 @@
   }
 
   function renderHeatmap(section) {
-    var wrap = el("div", { class: "viz" });
+    var wrap = el("div", { class: "viz heatmap" });
     var xLabels = section.xLabels || [];
     var yLabels = section.yLabels || [];
     var cells = section.cells || [];
-    var margin = 110;
-    var cellSize = 34;
-    var width = margin + xLabels.length * cellSize + 20;
-    var height = margin + yLabels.length * cellSize + 20;
-    var svg = window.d3
-      .select(wrap)
-      .append("svg")
-      .attr("viewBox", "0 0 " + width + " " + height);
 
     var values = cells.map(function (cell) {
       return cell.v;
@@ -784,61 +900,48 @@
             ])
         : window.d3.scaleSequential(interpolator).domain([minValue, maxValue]);
 
-    var xIndex = {};
-    xLabels.forEach(function (label, index) {
-      xIndex[label] = index;
-    });
-    var yIndex = {};
-    yLabels.forEach(function (label, index) {
-      yIndex[label] = index;
-    });
-
+    var lookup = {};
     cells.forEach(function (cell) {
-      var cx = margin + xIndex[cell.x] * cellSize;
-      var cy = margin + yIndex[cell.y] * cellSize;
-      if (isNaN(cx) || isNaN(cy)) {
-        return;
-      }
-      svg
-        .append("rect")
-        .attr("x", cx)
-        .attr("y", cy)
-        .attr("width", cellSize - 2)
-        .attr("height", cellSize - 2)
-        .attr("fill", scale(cell.v));
-      svg
-        .append("text")
-        .attr("x", cx + cellSize / 2 - 1)
-        .attr("y", cy + cellSize / 2)
-        .attr("text-anchor", "middle")
-        .attr("dy", "0.32em")
-        .style("font-size", "10px")
-        .attr("fill", "#0f1419")
-        .text(cell.v);
+      lookup[cell.x + " " + cell.y] = cell.v;
     });
 
-    xLabels.forEach(function (label, index) {
-      svg
-        .append("text")
-        .attr("x", margin + index * cellSize + cellSize / 2)
-        .attr("y", margin - 8)
-        .attr("text-anchor", "middle")
-        .style("font-size", "10px")
-        .attr("fill", "#8b95a3")
-        .text(label);
+    var table = el("table", { class: "heatmap-grid" });
+    var headRow = el("tr", null, [el("th", { class: "heatmap-corner" })]);
+    xLabels.forEach(function (label) {
+      headRow.appendChild(
+        el("th", { class: "heatmap-xlabel", scope: "col", text: String(label) })
+      );
     });
-    yLabels.forEach(function (label, index) {
-      svg
-        .append("text")
-        .attr("x", margin - 8)
-        .attr("y", margin + index * cellSize + cellSize / 2)
-        .attr("text-anchor", "end")
-        .attr("dy", "0.32em")
-        .style("font-size", "10px")
-        .attr("fill", "#8b95a3")
-        .text(label);
-    });
+    table.appendChild(el("thead", null, [headRow]));
 
+    var tbody = el("tbody");
+    yLabels.forEach(function (yLabel) {
+      var row = el("tr", null, [
+        el("th", {
+          class: "heatmap-ylabel",
+          scope: "row",
+          text: String(yLabel)
+        })
+      ]);
+      xLabels.forEach(function (xLabel) {
+        var key = xLabel + " " + yLabel;
+        var hasValue = Object.prototype.hasOwnProperty.call(lookup, key);
+        var value = lookup[key];
+        var td = el("td", {
+          class: "heatmap-cell",
+          title: xLabel + " × " + yLabel + " = " + (hasValue ? value : ""),
+          text: hasValue ? String(value) : ""
+        });
+        if (hasValue) {
+          td.style.background = scale(value);
+          td.style.color = "#0f1419";
+        }
+        row.appendChild(td);
+      });
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
     return wrap;
   }
 
@@ -876,6 +979,112 @@
       img.setAttribute("title", section.title);
     }
     wrap.appendChild(img);
+    return wrap;
+  }
+
+  function fillCellPlain(cell, text) {
+    clear(cell);
+    cell.classList.remove("dv-empty");
+    if (text) {
+      cell.appendChild(document.createTextNode(text));
+    } else {
+      cell.classList.add("dv-empty");
+    }
+  }
+
+  function fillBeforeCell(cell, parts) {
+    clear(cell);
+    cell.classList.remove("dv-empty");
+    var hasAny = false;
+    parts.forEach(function (part) {
+      if (part.added) {
+        return;
+      }
+      hasAny = true;
+      if (part.removed) {
+        cell.appendChild(el("del", { text: part.value }));
+      } else {
+        cell.appendChild(document.createTextNode(part.value));
+      }
+    });
+    if (!hasAny) {
+      cell.classList.add("dv-empty");
+    }
+  }
+
+  function fillAfterCell(cell, parts) {
+    clear(cell);
+    cell.classList.remove("dv-empty");
+    var hasAny = false;
+    parts.forEach(function (part) {
+      if (part.removed) {
+        return;
+      }
+      hasAny = true;
+      if (part.added) {
+        cell.appendChild(el("ins", { text: part.value }));
+      } else {
+        cell.appendChild(document.createTextNode(part.value));
+      }
+    });
+    if (!hasAny) {
+      cell.classList.add("dv-empty");
+    }
+  }
+
+  function fillDiffPair(row) {
+    var before = row.getAttribute("data-before") || "";
+    var after = row.getAttribute("data-after") || "";
+    var beforeCell = row.querySelector(".dv-before");
+    var afterCell = row.querySelector(".dv-after");
+    if (!beforeCell || !afterCell) {
+      return;
+    }
+    if (window.Diff && window.Diff.diffWords) {
+      var parts = window.Diff.diffWords(before, after);
+      fillBeforeCell(beforeCell, parts);
+      fillAfterCell(afterCell, parts);
+    } else {
+      fillCellPlain(beforeCell, before);
+      fillCellPlain(afterCell, after);
+    }
+  }
+
+  function renderDiffView(section) {
+    var table = el("table", { class: "diff-view-table" });
+    var tbody = el("tbody");
+    var rows = [];
+    (section.perspectives || []).forEach(function (perspective) {
+      var headCell = el("th", { class: "dv-perspective", colspan: "2" }, [
+        String(perspective.title == null ? "" : perspective.title)
+      ]);
+      headCell.appendChild(
+        el("span", {
+          class: "dv-perspective-lead",
+          text: String(perspective.lead == null ? "" : perspective.lead)
+        })
+      );
+      tbody.appendChild(el("tr", null, [headCell]));
+      (perspective.items || []).forEach(function (item) {
+        var before = item.before == null ? "" : String(item.before);
+        var after = item.after == null ? "" : String(item.after);
+        var tr = el("tr", {
+          class: "diff-pair",
+          "data-before": before,
+          "data-after": after
+        }, [
+          el("td", { class: "dv-before" }),
+          el("td", { class: "dv-after" })
+        ]);
+        tbody.appendChild(tr);
+        rows.push(tr);
+      });
+    });
+    table.appendChild(tbody);
+    var wrap = el("div", { class: "viz" }, [table]);
+    window.setTimeout(function () {
+      rows.forEach(fillDiffPair);
+    }, 0);
     return wrap;
   }
 
@@ -960,6 +1169,8 @@
         return renderMermaid(section);
       case "image":
         return renderImage(section);
+      case "diff-view":
+        return renderDiffView(section);
       default:
         return renderPlaceholder(section, fragmentId);
     }
@@ -1079,6 +1290,19 @@
     return activeMenu === defaultMenuLabel(fragment);
   }
 
+  function fragmentHasHelp(fragment) {
+    if (_is_help_string(fragment.help)) {
+      return true;
+    }
+    return (fragment.body || []).some(function (section) {
+      return section && _is_help_string(section.help);
+    });
+  }
+
+  function _is_help_string(value) {
+    return typeof value === "string" && value !== "";
+  }
+
   function renderFragment(target, fragment, deltas, activeMenu) {
     clear(target);
     if (!fragment) {
@@ -1087,15 +1311,73 @@
       );
       return;
     }
+    var producer = fragment.producer || {};
+    var category = fragment.category;
+    var id = fragment.id;
     var header = el("h1", { class: "fragment-title" }, [fragment.title]);
     header.appendChild(el("span", { class: "badge " + fragment.status, text: fragment.status }));
+    if (fragmentHasHelp(fragment)) {
+      header.appendChild(
+        el("a", {
+          class: "help-link",
+          href: "help.html#frag-" + category + "-" + id,
+          target: "_blank",
+          rel: "noopener",
+          title: "Open report help"
+        }, ["❓"])
+      );
+    }
+    var provToggle = el("button", {
+      class: "prov-toggle",
+      type: "button",
+      title: "Show provenance",
+      "aria-expanded": "false"
+    }, ["🪜"]);
+    header.appendChild(provToggle);
     target.appendChild(header);
     target.appendChild(el("p", { class: "fragment-sub", text: fragment.summary || "" }));
 
+    var provPanel = el("div", { class: "prov-panel hidden" });
+    var provList = el("dl", { class: "kv" });
+    [
+      ["Skill", producer.skill || "?"],
+      ["Tool", producer.tool || "?"],
+      ["Version", producer.version || ""],
+      ["Generated", formatDateTime(fragment.generated_at)],
+      ["Source", "skills/" + (producer.skill || "?") + "/"]
+    ].forEach(function (pair) {
+      provList.appendChild(el("dt", { text: pair[0] }));
+      provList.appendChild(el("dd", { text: pair[1] }));
+    });
+    provPanel.appendChild(provList);
+    provToggle.addEventListener("click", function () {
+      var open = provPanel.classList.contains("hidden");
+      provPanel.classList.toggle("hidden");
+      provToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    target.appendChild(provPanel);
+
     function sectionBlock(section) {
       var block = el("div", { class: "section" });
-      if (section.title) {
-        block.appendChild(el("h3", { text: section.title }));
+      if (section.title || section.status) {
+        var heading = el("h3");
+        if (section.status && STATUS_ICON[section.status]) {
+          heading.appendChild(
+            el("span", {
+              class: "section-status",
+              "aria-label": section.status,
+              title: section.status,
+              text: STATUS_ICON[section.status]
+            })
+          );
+        }
+        if (section.title) {
+          heading.appendChild(document.createTextNode(section.title));
+        }
+        if (_is_help_string(section.help)) {
+          heading.setAttribute("title", section.help);
+        }
+        block.appendChild(heading);
       }
       block.appendChild(renderSection(section, fragment.id, deltas));
       return block;
@@ -1126,19 +1408,23 @@
     });
     if (!releaseCount) {
       releaseCol.appendChild(
-        el("div", { class: "placeholder", text: "— nothing for this view —" })
+        el("div", { class: "placeholder", text: PLACEHOLDER_NO_SECTION })
       );
     }
     if (!productionCount) {
       productionCol.appendChild(
-        el("div", { class: "placeholder", text: "— nothing for this view —" })
+        el("div", {
+          class: "placeholder",
+          text: hasProductionBaseline()
+            ? PLACEHOLDER_NO_SECTION
+            : PLACEHOLDER_NO_BASELINE
+        })
       );
     }
     target.appendChild(
       el("div", { class: "view-cols" }, [releaseCol, productionCol])
     );
 
-    var producer = fragment.producer || {};
     target.appendChild(
       el("p", { class: "fragment-sub" }, [
         "Produced by " +
@@ -1148,19 +1434,27 @@
           " " +
           (producer.version || "") +
           " · " +
-          (fragment.generated_at || "")
+          formatDateTime(fragment.generated_at)
       ])
     );
   }
 
   function orderedCategories() {
+    var pin = { overview: 0, report: 1 };
     var categories = (state.manifest.categories || []).slice();
     categories.sort(function (a, b) {
-      if (a.id === "overview" && b.id !== "overview") {
-        return -1;
-      }
-      if (b.id === "overview" && a.id !== "overview") {
-        return 1;
+      var ap = pin[a.id];
+      var bp = pin[b.id];
+      if (ap != null || bp != null) {
+        if (ap == null) {
+          return 1;
+        }
+        if (bp == null) {
+          return -1;
+        }
+        if (ap !== bp) {
+          return ap - bp;
+        }
       }
       return String(a.id).localeCompare(String(b.id));
     });
@@ -1183,12 +1477,27 @@
   function buildNav() {
     var nav = document.getElementById("nav");
     clear(nav);
+    var order = [];
+    var areas = {};
     orderedCategories().forEach(function (category) {
+      var area = areaOf(category);
+      if (!areas[area]) {
+        areas[area] = [];
+        order.push(area);
+      }
+      areas[area].push(category);
+    });
+    order.forEach(function (area) {
+      var members = areas[area];
       var rollup = { ok: 0, info: 0, warn: 0, error: 0 };
-      category.fragments.forEach(function (fragment) {
-        if (fragment.status in rollup) {
-          rollup[fragment.status] += 1;
-        }
+      var count = 0;
+      members.forEach(function (category) {
+        category.fragments.forEach(function (fragment) {
+          count += 1;
+          if (fragment.status in rollup) {
+            rollup[fragment.status] += 1;
+          }
+        });
       });
       var worst = rollup.error
         ? "error"
@@ -1198,20 +1507,22 @@
         ? "info"
         : "ok";
       var head = el("div", { class: "category-head" }, [
-        category.label,
-        el("span", { class: "pill " + worst, text: String(category.fragments.length) })
+        area,
+        el("span", { class: "pill " + worst, text: String(count) })
       ]);
       var group = el("div", { class: "category" }, [head]);
-      category.fragments.forEach(function (fragment) {
-        var hash = "#" + category.id + "/" + fragment.id + moduleSuffix();
-        var link = el("a", { href: hash, title: fragment.summary || "" }, [
-          el("span", { class: "dot " + fragment.status }),
-          fragment.title
-        ]);
-        link.dataset.path = fragment.path;
-        link.dataset.category = category.id;
-        link.dataset.id = fragment.id;
-        group.appendChild(link);
+      members.forEach(function (category) {
+        category.fragments.forEach(function (fragment) {
+          var hash = "#" + category.id + "/" + fragment.id + moduleSuffix();
+          var link = el("a", { href: hash, title: fragment.summary || "" }, [
+            el("span", { class: "dot " + fragment.status }),
+            fragment.title
+          ]);
+          link.dataset.path = fragment.path;
+          link.dataset.category = category.id;
+          link.dataset.id = fragment.id;
+          group.appendChild(link);
+        });
       });
       nav.appendChild(group);
     });
@@ -1223,9 +1534,6 @@
     if (release.id) {
       parts.push(String(release.id));
     }
-    if (release.commit_count != null) {
-      parts.push(release.commit_count + " commits");
-    }
     return parts.join(" · ");
   }
 
@@ -1236,10 +1544,7 @@
     }
     var newest = releases[0];
     if (newest && newest.id === release.id) {
-      return el("span", {
-        class: "release-badge latest",
-        text: "✓ latest"
-      });
+      return null;
     }
     return el("span", {
       class: "release-badge superseded",
@@ -1260,10 +1565,21 @@
       titleRow.appendChild(badge);
     }
     header.appendChild(titleRow);
+    if (release.commit_count != null) {
+      header.appendChild(
+        el("div", {
+          class: "release-meta",
+          text: release.commit_count + " commits"
+        })
+      );
+    }
     var pills = el("div", { class: "rollup" });
     ["ok", "info", "warn", "error"].forEach(function (status) {
       pills.appendChild(
-        el("span", { class: "pill " + status, text: status + " " + (rollup[status] || 0) })
+        el("span", {
+          class: "pill " + status,
+          text: STATUS_ICON[status] + " " + (rollup[status] || 0)
+        })
       );
     });
     header.appendChild(pills);

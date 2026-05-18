@@ -75,6 +75,27 @@ else
   done
 fi
 
+dev_process_config=${DEV_RELEASE_CONFIG:-"$repo/dev-process.json"}
+ado_organization=""
+ado_project=""
+ado_base_url=""
+if [ -f "$dev_process_config" ]; then
+  ado_values=$(CONFIG_PATH="$dev_process_config" python3 -c 'import json,os
+try:
+    cfg=json.load(open(os.environ["CONFIG_PATH"],encoding="utf-8"))
+    a=cfg.get("azureDevOps") or {}
+except Exception:
+    a={}
+def s(v):
+    return v if isinstance(v,str) else ""
+print(s(a.get("organization")))
+print(s(a.get("project")))
+print(s(a.get("baseUrl")))' 2>/dev/null) || ado_values=$'\n\n'
+  ado_organization=$(printf '%s\n' "$ado_values" | sed -n '1p')
+  ado_project=$(printf '%s\n' "$ado_values" | sed -n '2p')
+  ado_base_url=$(printf '%s\n' "$ado_values" | sed -n '3p')
+fi
+
 az_available=false
 if command -v az >/dev/null 2>&1 && az account show >/dev/null 2>&1; then
   az_available=true
@@ -83,6 +104,8 @@ fi
 REPO="$repo" RAW_LOG="$raw_log_path" STRATEGY="$pr_unit_strategy" \
 SQUASH_PATTERN="$squash_generic_pattern" MAILMAP="$mailmap_path" \
 VIBE_PATH="$vibe_definition_path" AZ_AVAILABLE="$az_available" \
+ADO_ORGANIZATION="$ado_organization" ADO_PROJECT="$ado_project" \
+ADO_BASE_URL="$ado_base_url" \
 RS="$record_separator" FS="$field_separator" \
 python3 - "$out_dir/author-activity.json" <<'PYTHON'
 import json
@@ -98,6 +121,10 @@ strategy = os.environ["STRATEGY"]
 record_sep = os.environ["RS"]
 field_sep = os.environ["FS"]
 az_available = os.environ["AZ_AVAILABLE"] == "true"
+ado_organization = os.environ.get("ADO_ORGANIZATION", "")
+ado_project = os.environ.get("ADO_PROJECT", "")
+ado_base_url = os.environ.get("ADO_BASE_URL", "")
+ado_configured = bool(ado_organization and ado_project and ado_base_url)
 
 azure_subject = re.compile(r"^Merged PR (\d+): (.+)$")
 related_items = re.compile(r"Related work items:\s*((?:#\d+)(?:,\s*#\d+)*)")
@@ -190,19 +217,22 @@ def static_pattern_hint(rows):
 def work_item_type(work_item_id):
     if not az_available:
         return None
+    argv = [
+        "az",
+        "boards",
+        "work-item",
+        "show",
+        "--id",
+        str(work_item_id),
+        "--query",
+        'fields."System.WorkItemType"',
+        "-o",
+        "tsv",
+    ]
+    if ado_configured:
+        argv += ["--organization", ado_base_url + "/" + ado_organization]
     result = subprocess.run(
-        [
-            "az",
-            "boards",
-            "work-item",
-            "show",
-            "--id",
-            str(work_item_id),
-            "--query",
-            'fields."System.WorkItemType"',
-            "-o",
-            "tsv",
-        ],
+        argv,
         capture_output=True,
         text=True,
         check=False,
@@ -262,9 +292,18 @@ def parse_record(record):
     rows = numstat_for(sha)
     work_item_records = []
     for work_item_id in work_items:
-        work_item_records.append(
-            {"id": work_item_id, "type": work_item_type(work_item_id)}
-        )
+        record = {"id": work_item_id, "type": work_item_type(work_item_id)}
+        if ado_configured:
+            record["url"] = (
+                ado_base_url
+                + "/"
+                + ado_organization
+                + "/"
+                + ado_project
+                + "/_workitems/edit/"
+                + str(work_item_id)
+            )
+        work_item_records.append(record)
 
     return {
         "sha": sha,

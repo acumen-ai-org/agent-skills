@@ -87,6 +87,14 @@ is effectively absent, which is the correct behavior — nothing special-cases
 it. The collectors pass the analyzed repo path through their JSON so
 `to-fragment.py` can locate that config.
 
+**Binding.** A module-aware producer **always** resolves a repo-relative path
+to a module id through the shared resolver — `python3
+"${CLAUDE_PLUGIN_ROOT}/scripts/modules.py" id <path> --config
+<repo>/dev-process.json` — and **never** hand-tags or parses ids itself. With
+no config or an empty `modules` the resolver returns `root` for every path;
+emitting `root` everywhere is the only acceptable no-modules state. Never
+invent an id, never special-case a path, never fall back to a literal string.
+
 **Evolution — module-tagged tree rows.** The extension→folder→file `table`
 carries a `type:"module"` column the framework's global `Module:` selector
 filters on. Level-1 **extension** rows have an empty module cell, so they stay

@@ -122,6 +122,23 @@ if ! python3 -c 'import json,sys; json.load(open(sys.argv[1]))' "$result_json" >
   exit 2
 fi
 
+detected_stack=$provider_stack
+if [ "$detected_stack" = unknown ]; then
+  detected_stack=""
+fi
+python3 - "$result_json" "$detected_stack" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+data = json.load(open(path, encoding="utf-8"))
+if isinstance(data, dict):
+    data["detected_stack"] = sys.argv[2]
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=2)
+        handle.write("\n")
+PY
+
 failed_interactions=$(python3 - "$result_json" <<'PY'
 import json
 import sys

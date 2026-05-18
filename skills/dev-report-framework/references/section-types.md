@@ -1,13 +1,15 @@
 # Body section types — rendered behavior
 
-What each of the ten `body[]` types looks like once the framework renders it,
-and the minimum fields each needs. Use this when deciding which section type
-carries a given fact. The authoritative field rules are in
+What each `body[]` type looks like once the framework renders it, and the
+minimum fields each needs. Use this when deciding which section type carries a
+given fact. The authoritative field rules are in
 [fragment-schema.md](fragment-schema.md).
 
 ## Contents
 
 - [Two-column This-release / vs-production view](#two-column-this-release--vs-production-view)
+- [Section status icon](#section-status-icon)
+- [Consolidated help page](#consolidated-help-page)
 - [Top menu (menu groups)](#top-menu-menu-groups)
 - [Module filter](#module-filter)
 - [markdown](#markdown)
@@ -20,6 +22,8 @@ carries a given fact. The authoritative field rules are in
 - [heatmap](#heatmap)
 - [mermaid](#mermaid)
 - [image](#image)
+- [diff-view](#diff-view)
+- [Link table column](#link-table-column)
 - [File preview](#file-preview)
 - [Unknown types](#unknown-types)
 - [Out of scope](#out-of-scope)
@@ -33,13 +37,53 @@ release makes to production (the release-candidate's diff against the
 production branch, conceptually the `production..main` scope). A section's
 optional `"view"` tag (`"release"` or `"production"`, absent ⇒ `"release"`)
 decides its column; sections keep `body[]` order within their column. An empty
-column shows a muted `— nothing for this view —` placeholder. This is permanent
-fragment structure and is separate from the sidebar's
-show/hide-previous-releases toggle, an unrelated cross-release history feature.
+**left** column shows a muted `— nothing for this view —`. An empty **right**
+column shows the same string when a production baseline exists, otherwise
+`No previous production to compare with`. The baseline signal is the embedded
+`releases.json` — a baseline exists iff some entry's `id` differs from the
+shown release's id (a build-time snapshot, no network read under `file://`).
+The renderer owns the empty-column message; a producer never emits a
+placeholder. This is permanent fragment structure and is separate from the
+sidebar's show/hide-previous-releases toggle, an unrelated cross-release
+history feature.
 
 ```json
 { "type": "metric-cards", "view": "production", "title": "Change vs production",
   "cards": [ { "label": "New cycles", "value": 1, "delta_metric": "cycle_count" } ] }
+```
+
+## Section status icon
+
+A section's optional `"status"` (`ok|info|warn|error`) prepends an icon
+(`✅`/`ℹ️`/`⚠️`/`🚨`) to the section heading, with `aria-label`/`title` set to
+the status word. A section with a `title`, a `status`, or both gets a heading;
+a section with neither stays headerless (unchanged from v1). It lets a
+producer flag one section inside an otherwise-`ok` fragment without splitting
+it. Optional and back-compatible.
+
+```json
+{ "type": "table", "title": "Outdated deps", "status": "warn",
+  "columns": [ {"key":"name","label":"Package","type":"string"} ],
+  "rows": [ {"name":"left-pad"} ] }
+```
+
+## Consolidated help page
+
+An optional top-level fragment `"help"` (markdown) and optional per-section
+`"help"` (short string) feed one consolidated `help.html` at the report root
+(sibling of `index.html`). When a fragment has `help` or any section has
+`help`, the fragment header shows a `❓` link to
+`help.html#frag-<category>-<id>`; the page renders the fragment's `help`
+markdown (sanitized via marked+DOMPurify) and each section's `help` as a short
+note under it. A section's `help` is also the section heading's hover tooltip.
+The page parses an embedded JSON island (no `fetch`, `file://`-safe) and
+scrolls to the URL hash. No producer/validator change beyond the optional
+strings; both default to absent.
+
+```json
+{ "schema": "dev-report-fragment/v1", "help": "How to read this report part…",
+  "body": [ { "type": "markdown", "title": "Cycles",
+              "help": "A cycle is a closed import chain.", "md": "…" } ] }
 ```
 
 ## Top menu (menu groups)
@@ -156,7 +200,8 @@ value matches a `files[].path` on the same section (see
 [File preview](#file-preview)). A column with `type:"module"` carries an
 opaque module-id per cell; rows are hidden when the global module filter
 selects a different module (an empty/absent cell is never filtered, see
-[Module filter](#module-filter)).
+[Module filter](#module-filter)). A column with `type:"link"` renders
+hyperlinks (see [Link table column](#link-table-column)).
 
 ## key-value
 
@@ -190,8 +235,9 @@ Node-link graph on raw D3. `layout` is one of `force` (force-directed),
 `links[].value` becomes ribbon thickness via a node×node matrix). An unknown
 `layout` falls back to `force`. `links.source`/`links.target` reference
 `nodes.id`. `group` colors nodes; `value` weights link width (force/dag) or
-ribbon thickness (chord). `chord` is a `layout` value, not a tenth body
-type — the contract stays nine types.
+ribbon thickness (chord). All layouts pan/zoom (drag to pan, scroll to zoom);
+a `Reset view` button restores the viewport. `chord` is a `layout` value, not
+a tenth body type — the contract stays nine types.
 
 ```json
 { "type": "d3-graph", "title": "Module graph", "layout": "dag",
@@ -225,9 +271,13 @@ their children. Use for size/share-of-total (LOC by area, churn by directory).
 
 ## heatmap
 
-Matrix of `cells` indexed by `xLabels`/`yLabels`. `colorScale:"sequential"`
-for one-directional magnitude, `"diverging"` for signed values around zero.
-Cells reference labels by string, not index.
+Matrix of `cells` indexed by `xLabels`/`yLabels`, rendered as an accessible
+HTML `<table>` (column/row header cells with `scope`, a per-cell
+`x × y = v` tooltip) that scales with the page text rather than a fixed-size
+SVG. `colorScale:"sequential"` for one-directional magnitude, `"diverging"`
+for signed values around zero — cell background uses the same D3 color scale
+as before. A missing `x×y` cell renders empty (no background). Cells reference
+labels by string, not index.
 
 ```json
 { "type": "heatmap", "title": "Author × area",
@@ -260,6 +310,53 @@ optional `title` becomes the tooltip. Used for the Overview infographic.
   "alt": "Release overview infographic" }
 ```
 
+## diff-view
+
+A grouped before/after table for an Overview synthesis. `perspectives` is a
+non-empty list; each perspective is `{ slug, title, lead, items }` with `slug`
+matching `[a-z0-9-]+`, non-empty `title`/`lead`, and a non-empty `items` list.
+Each item is a single `{ before, after }` string pair — there is no separate
+change-kind field: change kind is implicit in emptiness. `before` empty ⇒ a
+NEW row; `after` empty ⇒ a DELETED row; both non-empty ⇒ an UPDATED row. An
+item with **both** `before` and `after` empty is invalid, and an empty `items`
+list is invalid — a perspective with no real items is dropped by the producer,
+never emitted as an empty shell. The renderer draws one
+`<table class="diff-view-table">`: each perspective contributes a spanning
+header row (`title` plus a muted inline `lead`) followed by one row per item
+with a left **before** cell and a right **after** cell. When `window.Diff` is
+loaded the cells show a word-level diff (removed words in `<del>`, added words
+in `<ins>`); without jsdiff each cell shows its plain `before`/`after` text —
+a row is never blank. An entirely empty cell renders a muted em-dash. The
+item's internal before/after is the *change's own* before/after and is
+unrelated to the framework `view` column tag.
+
+```json
+{ "type": "diff-view", "title": "Diff view", "menu": "Diff view",
+  "perspectives": [
+    { "slug": "user", "title": "User perspective (need)",
+      "lead": "What end users see and do.",
+      "items": [
+        { "before": "",                     "after": "Composition edit-mode panel" },
+        { "before": "insertion-order chips", "after": "alphabetical chips" },
+        { "before": "Legacy selections",     "after": "" } ] } ] }
+```
+
+## Link table column
+
+A `table` column with `"type": "link"` renders each cell as a hyperlink. The
+cell value is `{ "text", "href" }` (one `target=_blank rel=noopener`
+anchor), a list of those (comma-joined anchors), or a plain string (rendered
+as text — the graceful-degrade case). `file`/`module`/`number`/`string`
+columns are unchanged.
+
+```json
+{ "type": "table", "title": "Pull requests",
+  "columns": [ {"key":"pr","label":"PR","type":"link"},
+               {"key":"title","label":"Title","type":"string"} ],
+  "rows": [ {"pr":{"text":"#412","href":"https://example/pr/412"},
+             "title":"Fix auth cycle"} ] }
+```
+
 ## File preview
 
 A section's optional
@@ -283,13 +380,14 @@ is inert and says so.
 
 ## Unknown types
 
-Any `type` outside the ten renders a visible
+Any unrecognized `type` renders a visible
 "unsupported section type `X` (fragment `id`)" placeholder and never throws.
 This is the forward-compat guarantee: a newer producer can emit a type an
 older deployed report does not know, and the rest of the report still renders.
 
 ## Out of scope
 
-Inventing an eleventh type (the renderer only dispatches the ten; a new type
-is a contract change, not a fragment change). Styling overrides — color, size,
+Inventing a new type without a contract change (the renderer dispatches a
+fixed switch; a new type is a contract change, not a fragment change).
+Styling overrides — color, size,
 and layout are the framework's, not the fragment's.

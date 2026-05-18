@@ -22,14 +22,17 @@ plan
 
 apply
   Appends to <fragment-path>'s body[], in order, a
-  { "type":"markdown", "view":"production", "title":"vs production",
-    "md": <summary-file contents> } section then a
+  { "type":"markdown", "view":"production", "status":"info",
+    "title":"vs production", "md": <summary-file contents> } section then a
   { "type":"image", "view":"production", "src": <image-data-uri-file
     contents>, "alt":"vs production summary" } section, and rewrites the
-  fragment. Existing sections are not touched; no menu is added. This script
-  never calls an LLM and never generates an image — the role writes the
-  summary, content-to-image's text-to-image.sh writes the image; revalidate
-  with dev-report-framework/scripts/validate_fragments.py after apply.
+  fragment. The markdown section is status info (commentary on the delta); the
+  image section omits status. Existing sections are not touched; no menu is
+  added. A fragment-level help string is added only when the fragment carries
+  none, so a producer's own help is never clobbered. This script never calls an
+  LLM and never generates an image — the role writes the summary,
+  content-to-image's text-to-image.sh writes the image; revalidate with
+  dev-report-framework/scripts/validate_fragments.py after apply.
 
 Exit codes:
   0  ok (plan printed its lines, possibly none; apply rewrote the fragment)
@@ -40,6 +43,19 @@ Exit codes:
 import json
 import pathlib
 import sys
+
+
+def _report_help():
+    help_path = (
+        pathlib.Path(__file__).resolve().parent
+        / ".."
+        / "references"
+        / "report-help.md"
+    )
+    try:
+        return help_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 def _load_json(path):
@@ -158,6 +174,7 @@ def _apply(fragment_path, summary_file, datauri_file):
         {
             "type": "markdown",
             "view": "production",
+            "status": "info",
             "title": "vs production",
             "md": summary,
         }
@@ -171,6 +188,10 @@ def _apply(fragment_path, summary_file, datauri_file):
         }
     )
     fragment["body"] = body
+    if "help" not in fragment:
+        help_md = _report_help()
+        if help_md:
+            fragment["help"] = help_md
 
     fragment_path.write_text(
         json.dumps(fragment, indent=2, ensure_ascii=False) + "\n",

@@ -62,6 +62,11 @@ Output only — no commentary. Exactly this structure:
 - Behavior change: <list, each marked (proven) or (inferred)>
 ```
 
+When `dev-analysis-quality` appends this output it wraps it in a `markdown`
+section tagged `"menu": "Diff summary"`, giving the structural narrative its
+own top-menu group in the quality report part. The role produces the prose;
+the appending step owns the menu tag.
+
 ## Concrete example
 
 For a diff that renames `getUser` → `fetchUser` across `api/` and adds a

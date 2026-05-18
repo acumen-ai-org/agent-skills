@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report help</title>
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js" integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a" crossorigin="anonymous"></script>
+<script id="help-data" type="application/json">{}</script>
+</head>
+<body>
+<main id="help-root" class="pane"></main>
+<script>
+(function () {
+  "use strict";
+  var data = {};
+  var island = document.getElementById("help-data");
+  if (island && island.textContent.trim()) {
+    try {
+      data = JSON.parse(island.textContent);
+    } catch (error) {
+      data = {};
+    }
+  }
+  function mdHtml(text) {
+    var raw = window.marked ? window.marked.parse(text || "") : text || "";
+    return window.DOMPurify ? window.DOMPurify.sanitize(raw) : "";
+  }
+  var root = document.getElementById("help-root");
+  (data.entries || []).forEach(function (entry) {
+    var section = document.createElement("section");
+    section.id = entry.anchor;
+    section.className = "help-entry";
+    var h2 = document.createElement("h2");
+    h2.textContent = entry.title || "";
+    section.appendChild(h2);
+    var body = document.createElement("div");
+    body.className = "md-body";
+    body.innerHTML = mdHtml(entry.help);
+    section.appendChild(body);
+    (entry.sections || []).forEach(function (sub) {
+      var div = document.createElement("div");
+      div.id = sub.anchor;
+      div.className = "help-section";
+      var h3 = document.createElement("h3");
+      h3.textContent = sub.title || "";
+      div.appendChild(h3);
+      var p = document.createElement("p");
+      p.textContent = sub.help || "";
+      div.appendChild(p);
+      section.appendChild(div);
+    });
+    root.appendChild(section);
+  });
+  if (location.hash) {
+    var target = document.getElementById(location.hash.replace(/^#/, ""));
+    if (target) {
+      target.scrollIntoView();
+    }
+  }
+})();
+</script>
+</body>
+</html>

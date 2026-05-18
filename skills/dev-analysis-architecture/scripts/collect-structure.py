@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static, tool-free module/dependency and ADR inventory for a repo.
+"""Static, tool-free module/dependency inventory for a repo.
 
 Usage: collect-structure.py <repo> <out_dir> [ref]
 
@@ -14,8 +14,6 @@ It produces one raw JSON in <out_dir> carrying:
     repo-relative path, grouped by top-level package directory.
   - edges: directed source -> target file pairs with `value` = the number of
     import/reference statements from source resolving to target.
-  - adrs: every Architecture Decision Record found via the configurable glob
-    set, with path, title, and status.
   - stacks: the languages whose import syntax was matched, for the role.
   - config: the path to <repo>/dev-process.json when it exists, else null,
     so to-fragment.py can resolve per-path module ids via the shared
@@ -42,16 +40,6 @@ import subprocess
 import sys
 
 RAW_NAME = "architecture-source.raw.json"
-
-ADR_GLOBS = (
-    "docs/adr*/**/*.md",
-    "docs/adr*/*.md",
-    "docs/decisions/**/*.md",
-    "docs/decisions/*.md",
-    "adr/**/*.md",
-    "adr/*.md",
-    "**/*-adr-*.md",
-)
 
 SOURCE_SUFFIXES = {
     ".ts": "ts",
@@ -88,8 +76,6 @@ RUST_MOD = re.compile(r"^\s*(?:pub\s+)?mod\s+([A-Za-z_]\w*)\s*;", re.MULTILINE)
 GO_IMPORT_BLOCK = re.compile(r"import\s*\(([^)]*)\)", re.DOTALL)
 GO_IMPORT_SINGLE = re.compile(r'^\s*import\s+"([^"]+)"', re.MULTILINE)
 GO_IMPORT_PATH = re.compile(r'"([^"]+)"')
-ADR_STATUS = re.compile(r"(?im)^\s*(?:[-*]\s*)?(?:\*\*)?status(?:\*\*)?\s*[:=]\s*(.+?)\s*$")
-ADR_TITLE = re.compile(r"(?m)^\s*#\s+(.+?)\s*$")
 
 
 def run_git(repo, args):
@@ -324,42 +310,6 @@ def _bump(counts, source, target):
     counts[key] = counts.get(key, 0) + 1
 
 
-def _adr_match(rel, glob):
-    candidates = {glob}
-    if glob.startswith("**/"):
-        candidates.add(glob[3:])
-    path = pathlib.PurePosixPath(rel)
-    return any(path.match(pattern) for pattern in candidates)
-
-
-def collect_adrs(repo, ref, files):
-    seen = set()
-    matched = []
-    for glob in ADR_GLOBS:
-        for rel in files:
-            if rel in seen:
-                continue
-            if not rel.lower().endswith(".md"):
-                continue
-            if _adr_match(rel, glob):
-                seen.add(rel)
-                matched.append(rel)
-    adrs = []
-    for rel in sorted(matched):
-        text = read_file(repo, ref, rel)
-        title = pathlib.PurePosixPath(rel).stem
-        status = "unknown"
-        if text is not None:
-            title_match = ADR_TITLE.search(text)
-            if title_match:
-                title = title_match.group(1).strip()
-            status_match = ADR_STATUS.search(text)
-            if status_match:
-                status = status_match.group(1).strip()
-        adrs.append({"path": rel, "title": title, "status": status})
-    return adrs
-
-
 def main():
     if len(sys.argv) not in (3, 4):
         sys.stderr.write("usage: collect-structure.py <repo> <out_dir> [ref]\n")
@@ -384,7 +334,6 @@ def main():
 
     files = list_files(repo, ref)
     nodes, edges, stacks = collect_edges(repo, ref, files)
-    adrs = collect_adrs(repo, ref, files)
 
     config_path = repo / "dev-process.json"
 
@@ -396,13 +345,12 @@ def main():
         "stacks": stacks,
         "nodes": nodes,
         "edges": edges,
-        "adrs": adrs,
     }
 
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / RAW_NAME
     out_path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
-    print(f"wrote {out_path} nodes={len(nodes)} edges={len(edges)} adrs={len(adrs)}")
+    print(f"wrote {out_path} nodes={len(nodes)} edges={len(edges)}")
     print("TOOL collect-structure exit=0")
     return 0
 

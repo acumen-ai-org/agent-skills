@@ -24,6 +24,14 @@ import sys
 SEVERITY_RANK = {"INFO": 0, "WARNING": 1, "ERROR": 2}
 
 
+def _report_help():
+    help_path = pathlib.Path(__file__).resolve().parent.parent / "references" / "report-help.md"
+    try:
+        return help_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 def _load(path):
     return json.loads(pathlib.Path(path).read_text(encoding="utf-8"))
 
@@ -152,10 +160,17 @@ def main():
             metrics["semgrep_warning"] = counts["warning"]
             metrics["semgrep_info"] = counts["info"]
             metrics["semgrep_findings"] = sum(counts.values())
+            if counts["error"] > 0:
+                findings_status = "error"
+            elif counts["warning"] > 0:
+                findings_status = "warn"
+            else:
+                findings_status = "ok"
             body.append(
                 {
                     "type": "metric-cards",
                     "title": "Semgrep findings",
+                    "menu": "Findings",
                     "cards": [
                         {"label": "Error", "value": counts["error"], "delta_metric": "semgrep_error"},
                         {"label": "Warning", "value": counts["warning"], "delta_metric": "semgrep_warning"},
@@ -167,6 +182,8 @@ def main():
                 {
                     "type": "table",
                     "title": "Findings",
+                    "menu": "Findings",
+                    "status": findings_status,
                     "filterable": True,
                     "columns": [
                         {"key": "check", "label": "Check", "type": "string", "sortable": True},
@@ -193,6 +210,7 @@ def main():
                 {
                     "type": "metric-cards",
                     "title": "Size & complexity",
+                    "menu": "Metrics",
                     "cards": [
                         {"label": "Lines of code", "value": scc["loc_code"], "delta_metric": "loc_code"},
                         {"label": "Cyclomatic complexity", "value": scc["complexity"], "delta_metric": "complexity"},
@@ -205,6 +223,8 @@ def main():
                     {
                         "type": "table",
                         "title": "By language",
+                        "menu": "Metrics",
+                        "status": "info",
                         "filterable": True,
                         "columns": [
                             {"key": "language", "label": "Language", "type": "string", "sortable": True},
@@ -230,6 +250,8 @@ def main():
                 {
                     "type": "table",
                     "title": "Policy results",
+                    "menu": "Policy",
+                    "status": "error" if policy_failures > 0 else "ok",
                     "columns": [
                         {"key": "file", "label": "File", "type": "string", "sortable": True},
                         {"key": "rule", "label": "Rule", "type": "string", "sortable": False},
@@ -264,6 +286,10 @@ def main():
         "metrics": metrics,
         "body": body,
     }
+
+    help_md = _report_help()
+    if help_md:
+        fragment["help"] = help_md
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(fragment, indent=2, sort_keys=True), encoding="utf-8")

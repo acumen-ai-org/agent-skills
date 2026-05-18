@@ -87,10 +87,22 @@ Output only — no preamble. Exactly this structure:
 - The image brief is exactly one sentence, ≤40 words, describing a subject to
   illustrate — not a chart specification and not a file reference.
 
+## Related Overview steps
+
+This role writes the `Summary` sub-section (scope bullets + the infographic
+brief). The other Overview sub-sections are produced by separate steps and
+must not be duplicated here:
+
+- [`diff-view.md`](diff-view.md) — the `Diff view` perspectives.
+- [`change-shift-narrative.md`](change-shift-narrative.md) — `Changes`
+  bullets and the merged `overview-extras.json`.
+- [`hero-briefs.md`](hero-briefs.md) — the per-sub-section hero briefs.
+
 ## Out of scope
 
 Building the rollup or counting statuses (the caller does that before invoking
-you). Fragment shape, the `image`/`markdown` body wrapping, or the data: URI
-(`to-fragment.py`). Running `content-to-image` or choosing its type/style
-(that Skill's roles own art-direction). Choosing the release id, validating, or
-building the report (`dev-report-framework`).
+you). The `Diff view`, `Changes`, and `Shifts` sub-sections (their own role
+steps above). Fragment shape, the `image`/`markdown` body wrapping, or the
+data: URI (`to-fragment.py`). Running `content-to-image` or choosing its
+type/style (that Skill's roles own art-direction). Choosing the release id,
+validating, or building the report (`dev-report-framework`).
