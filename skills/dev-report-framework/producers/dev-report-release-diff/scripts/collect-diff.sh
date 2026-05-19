@@ -13,7 +13,7 @@ if [ -z "$plugin_root" ]; then
 fi
 shared_collect_history="$plugin_root/scripts/collect-history.sh"
 shared_collect_author_activity="$plugin_root/scripts/collect-author-activity.sh"
-schema_diff_chain="$plugin_root/skills/dev-analysis-schema/scripts/diff-schemas.sh"
+schema_diff_chain="$plugin_root/skills/dev-report-framework/producers/dev-analysis-schema/scripts/diff-schemas.sh"
 
 for reused in "$shared_collect_history" "$shared_collect_author_activity" "$schema_diff_chain"; do
   if [ ! -f "$reused" ]; then

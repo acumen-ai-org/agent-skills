@@ -1,13 +1,10 @@
----
-name: dev-analysis-architecture
-description: Analyzes whether a codebase's structure matches its intended architecture. Runs a per-stack analyzer (dependency-cruiser, madge, or Nx for TypeScript/JavaScript; ArchUnitNET/NetArchTest or MSADoc for .NET; cargo-modules for Rust; Structurizr DSL for any stack or F#), normalizes the module graph and any rule violations into one dev-report-fragment/v1 architecture fragment with a dependency graph, cycle list, and node/edge/cycle/depth metrics, then a synthesis role narrates the result. Use when assessing module boundaries, dependency cycles, layering violations, or architectural drift for a release report.
----
-
 # dev-analysis-architecture
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Answers "does the structure match the intent?" Each runner executes one
 analyzer, writes `<id>.raw.<ext>`, and `to-fragment.py` normalizes that into a
-single `architecture` fragment for [`dev-report-framework`](../dev-report-framework/SKILL.md).
+single `architecture` fragment for [`dev-report-framework`](../../SKILL.md).
 The Skill is self-contained — roles live in `references/`, never as registered
 subagents.
 

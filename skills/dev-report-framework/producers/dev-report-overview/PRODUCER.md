@@ -1,9 +1,6 @@
----
-name: dev-report-overview
-description: Runs last in a release report pipeline, after every dev-analysis-/dev-test- producer has staged its fragment and before dev-report-build. Reads the same staging dir the build consumes, rolls up counts by status and per-category highlights and total scope, runs the overview-synthesis role to produce high-level scope bullets plus a one-line image brief, invokes the content-to-image Skill to render an infographic PNG, then emits a single category:"overview" fragment (a base64 data: URI image body plus a markdown bullets body) into the staging dir so the build pins it first as the report's landing page. Use as the final fragment-producing step before assembling a release report.
----
-
 # dev-report-overview
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Produces the report's landing fragment: the one fragment that reads all the
 others. A role digests the staged set into scope bullets and an image brief;

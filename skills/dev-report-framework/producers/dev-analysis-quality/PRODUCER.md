@@ -1,9 +1,6 @@
----
-name: dev-analysis-quality
-description: Analyzes whether code is sound, sized, and within policy, then emits one `quality` report fragment. Runs Semgrep (SAST), scc (LOC/complexity), and OPA/Conftest (policy-as-code over manifests/IaC), and produces a difftastic structural diff for prose summary. Owns the single shared `run-semgrep.sh` runner that dev-analysis-security calls with its own ruleset. Use when assessing code quality, static-analysis findings, size/complexity, policy compliance, or structural change between two refs for a release report.
----
-
 # dev-analysis-quality
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Answers one question — *is the code sound, sized, and within policy?* — and
 emits exactly one report fragment, `category: quality`. Each runner is a
@@ -154,7 +151,7 @@ passes a quality/SAST ruleset (`p/ci`, `p/default`, or a local path);
 `dev-analysis-security` calls the **same file** with a taint/network
 ruleset (`p/security-audit`, `p/owasp-top-ten`). Adding a second Semgrep
 runner is forbidden by the
-[shared-runner rule](../../docs/dev-skill-taxonomy.md#the-shared-runner-rule).
+[shared-runner rule](../../../../docs/dev-skill-taxonomy.md#the-shared-runner-rule).
 It writes `semgrep.raw.json`; `to-fragment.py` normalizes it.
 
 ## Optional CodeQL

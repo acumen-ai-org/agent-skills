@@ -1,15 +1,19 @@
 # Dev-report Framework
 
-The contract and rendering model for `dev-report-framework` — the Skill that
-aggregates report fragments from every `dev-analysis-`/`dev-test-` Skill into
-one navigable, standalone HTML report folder per release, with a permanent
-This-release / vs-production two-column layout and a separate
+The contract and rendering model for `dev-report-framework` — the host skill
+that aggregates the report fragments produced by its bundled internal
+producers into one navigable, standalone HTML report folder per release, with
+a permanent This-release / vs-production two-column layout and a separate
 show/hide-previous-releases split-screen.
 
-The report-fragment JSON is the **only** coupling between producers and the
-framework. A producer Skill emits valid fragments and knows nothing about
-HTML, JS, or D3. The framework renders any fragment generically by dispatching
-on `body[].type`, so a new `dev-analysis-` Skill needs zero framework changes.
+The report-fragment JSON is the **only** coupling between a producer and the
+framework. A producer emits valid fragments and knows nothing about HTML, JS,
+or D3. The framework renders any fragment generically by dispatching on
+`body[].type`, so a new producer needs zero framework changes. The first-party
+producers are bundled internally (see
+[dev-skill-taxonomy.md](dev-skill-taxonomy.md)); a consuming repo adds its own
+without touching the plugin (see
+[Adding your own producer](#adding-your-own-producer-consuming-repos)).
 
 ## Contents
 
@@ -26,10 +30,11 @@ on `body[].type`, so a new `dev-analysis-` Skill needs zero framework changes.
 - [Layout, navigation, and split-screen model](#layout-navigation-and-split-screen-model)
 - [dev-report-build](#dev-report-build)
 - [validate_fragments.py](#validate_fragmentspy)
+- [Adding your own producer (consuming repos)](#adding-your-own-producer-consuming-repos)
 
 ## Report-fragment contract
 
-One JSON file per fragment. A producer Skill emits one or more. The formal
+One JSON file per fragment. A producer emits one or more. The formal
 schema is enforced by `validate_fragments.py`; this table is its meaning.
 
 | Field          | Type          | Required | Notes |
@@ -54,7 +59,7 @@ Units, labels, and good-direction are **not** in `metrics` — they live in
 `metric-cards` and the manifest, so a number can be both diffable and pretty.
 
 The producer's script writes the factual `metrics{}` and factual `body[]`. The
-producer Skill's `*-synthesis.md` role enriches `summary` and adds narrative
+producer's `*-synthesis.md` role enriches `summary` and adds narrative
 `body[]` sections. The merged result is what gets validated.
 
 ## Body section types
@@ -524,7 +529,7 @@ Exit codes:
 validate_fragments.py <fragments-dir>
 ```
 
-The standalone feedback-loop validator a producer Skill runs **before**
+The standalone feedback-loop validator a producer runs **before**
 handing fragments to the build: exit `0` when every fragment conforms, exit `3`
 with a per-file error list on stderr otherwise. It is the same validation
 `dev-report-build` runs internally — a producer can iterate
@@ -533,3 +538,54 @@ Layer-1 mermaid lint from `scripts/verify_mermaid.py` so every `mermaid`
 section's `diagram` is structurally checked as part of the same pass (see
 [mermaid lint and verify_mermaid.py](#mermaid-lint-and-verify_mermaidpy)).
 Python 3, standard library only.
+
+## Adding your own producer (consuming repos)
+
+The first-party producers are sealed inside the installed plugin at
+`dev-report-framework/producers/<name>/` and run automatically. **Do not edit
+them or add files into the installed plugin** — the plugin directory is
+ephemeral (replaced on update). A consuming repo adds its **own** producers, in
+its own repo, wired through `dev-process.json`. Nothing in the plugin changes.
+
+Recommended layout — a convention, not enforced; mirror the internal shape so
+your producers read like the first-party ones:
+
+```
+<your-repo>/dev-report/producers/<name>/
+├── PRODUCER.md      # the workflow, if a role drives it
+├── references/      # synthesis role(s)
+└── scripts/
+    ├── run-<tool>.sh
+    └── to-fragment.py
+```
+
+The contract your producer must honor:
+
+- Emit one or more `dev-report-fragment/v1` fragments (the
+  [Report-fragment contract](#report-fragment-contract)) into the staging
+  fragments dir the orchestrator passes.
+- Validate them before handoff against the plugin's validator at the stable
+  absolute path
+  `${CLAUDE_PLUGIN_ROOT}/skills/dev-report-framework/scripts/validate_fragments.py`
+  — exit `0` is the gate.
+- Use a `category` from the **fixed enum** (`architecture … report`). Do not
+  invent one — the enum drives the left-nav. The `test-coverage` /
+  `test-reports` slots exist specifically for a consuming repo's coverage / e2e
+  tool; otherwise reuse the closest existing category, or `report` for
+  report-meta output.
+- Own your script paths relative to your producer dir, exactly as the
+  first-party producers do — the script writes factual `metrics{}` / `body[]`,
+  a `references/*-synthesis.md` role adds narrative, scripts never call an LLM.
+- Keep `id` stable across releases — it is the cross-release diff key.
+
+Wiring — add a `dev-process.json` `analysis` / `review` entry:
+
+- `kind:"command"` with `run` pointing at your producer's script (it emits the
+  fragment and exits per the standard runner codes), or
+- `kind:"skill"` with `run` an instruction/agent for an LLM-driven producer.
+
+A `run` that is not one of the eight first-party producer names is dispatched
+verbatim as your own command/agent — the orchestrator needs no change to
+accept a new consumer producer. This is the stable seam: adding analysis is a
+config change, never an orchestrator change. See
+[dev-process-config.md](../skills/dev-release-candidate/references/dev-process-config.md).

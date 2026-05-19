@@ -1,8 +1,9 @@
 # Dev-tooling Catalog
 
 The open-source tools that back the `dev-analysis-`/`dev-test-`/`dev-report-`
-Skills, what question each answers, and where each is owned. Placement follows
-the [taxonomy](dev-skill-taxonomy.md); fragments conform to the
+internal producers (bundled inside `dev-report-framework`), what question each
+answers, and which producer owns each. Placement follows the
+[taxonomy](dev-skill-taxonomy.md); fragments conform to the
 [report contract](dev-report-framework.md).
 
 ## Contents
@@ -35,8 +36,9 @@ tools.
 
 ## Catalog
 
-Every tool from the brief appears exactly once, grouped by its owning Skill.
-"Runtime" is what the runner needs present.
+Every tool from the brief appears exactly once, grouped by its owning producer
+(`skills/dev-report-framework/producers/<name>/`). "Runtime" is what the runner
+needs present.
 
 ### dev-analysis-architecture — does structure match intent?
 
@@ -103,14 +105,14 @@ Every tool from the brief appears exactly once, grouped by its owning Skill.
 | ---- | ------ | ------- | ------- | ----- |
 | pact.io | TS/JS, .NET, Py, Rust, GraphQL | per-stack + Docker (optional broker) | MIT | Consumer/provider contract verification; executes the provider. |
 
-### dev-report — assembly and presentation
+### dev-report — host skill and assembly producers
 
-| Capability | Owning Skill | Runtime | Notes |
-| ---------- | ------------ | ------- | ----- |
-| Fragment validation + report build + standalone "Release candidate report" | `dev-report-framework` | python3 (stdlib) + CDN libs | Owns the contract (`view` two-column release/Δ tag, `files[]` preview, table `children`, `image`, `d3-graph` force/dag/chord). Per-section top menu, show/hide previous releases, a global `Module:` filter (ids resolved by the shared `scripts/modules.py` from `dev-process.json` `modules`), optional DESIGN.md theming. CDN: marked/DOMPurify/D3 v7/Mermaid. |
-| Multi-perspective `git diff` → Slidev deck | `dev-report-release-diff` | bash + python3, Node (Slidev, MIT) | Reuses evolution's diff collectors, `dev-analysis-schema`, and `content-to-image` (one image per perspective). |
-| Pinned report landing page (scope infographic + bullets) | `dev-report-overview` | python3 (stdlib), reuses `content-to-image` | Runs last; reads the assembled fragments + scope; emits the `overview` fragment the framework pins as the default landing. |
-| Unit test coverage / e2e test reports | none — **empty slots** | n/a | Categories `test-coverage` and `test-reports` exist in the contract + nav; the consuming repo wires its own tool via a `dev-process.json` `analysis`/`review` entry. No producer ships. |
+| Capability | Owner | Runtime | Notes |
+| ---------- | ----- | ------- | ----- |
+| Fragment validation + report build + standalone "Release candidate report" + bundling every producer | `dev-report-framework` (host skill) | python3 (stdlib) + CDN libs | Owns the contract (`view` two-column release/Δ tag, `files[]` preview, table `children`, `image`, `d3-graph` force/dag/chord, `diff-view`). Per-section top menu, show/hide previous releases, a global `Module:` filter (ids resolved by the shared `scripts/modules.py` from `dev-process.json` `modules`), optional DESIGN.md theming. CDN: marked/DOMPurify/D3 v7/Mermaid. |
+| Multi-perspective `git diff` → a `report` fragment | `dev-report-release-diff` producer | bash + python3 (stdlib) | Reuses evolution's diff collectors, `dev-analysis-schema`, and `content-to-image` (one image per perspective); emits one image+narrative section per perspective into the report — no separate deck, no Node. |
+| Pinned report landing page (scope infographic + bullets) | `dev-report-overview` producer | python3 (stdlib), reuses `content-to-image` | Runs last; reads the assembled fragments + scope; emits the `overview` fragment the framework pins as the default landing. |
+| Unit test coverage / e2e test reports | none — **empty slots** | n/a | Categories `test-coverage` and `test-reports` exist in the contract + nav; the consuming repo wires its own tool via a `dev-process.json` `analysis`/`review` entry. No first-party producer ships. |
 
 The `git diff main...feature` multi-perspective capability from the brief is
 `dev-report-release-diff`. The eight default perspectives are: architecture
@@ -121,8 +123,8 @@ only when a static fact source for them exists.
 
 ## Excluded commercial tools and their replacements
 
-| Requested (commercial) | Replacement (OSS) | Owning Skill |
-| ---------------------- | ----------------- | ------------ |
+| Requested (commercial) | Replacement (OSS) | Owning producer |
+| ---------------------- | ----------------- | --------------- |
 | NDepend (.NET architecture rules) | ArchUnitNET / NetArchTest | `dev-analysis-architecture` |
 | SemanticDiff (structural diff) | difftastic | `dev-analysis-quality` |
 

@@ -1,9 +1,6 @@
----
-name: dev-report-vs-production
-description: Runs late in a release report pipeline, after every dev-analysis-/dev-test- producer has staged its fragment and before dev-report-overview and dev-report-build. Backfills the empty "vs production" right column for staged fragments that only carry a current-state (release) view, by LLM-diffing each against its same-id fragment from the previous release (releases.json[0] at the reports root). For each such fragment with a prior counterpart it runs the vs-production-synthesis role to produce a concise markdown change summary plus a one-line image brief, invokes the content-to-image one-shot text-to-image script for a single infographic (which always yields an image — real or a fallback SVG), and appends one markdown then one image section, both view:"production", to that fragment in place. It emits no new fragment and owns no category. Fragments that already have a production view, and new fragments with no prior counterpart, are left untouched. Use as the vs-production backfill step before assembling a release report.
----
-
 # dev-report-vs-production
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Backfills the right **vs production** column for staged fragments whose
 producer only emitted a left **This release** view. It augments existing

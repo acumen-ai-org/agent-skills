@@ -9,8 +9,8 @@ Authoring and structure guidance for this repository. Start here.
 | [authoring-skills.md](authoring-skills.md)           | You're writing or reviewing a `SKILL.md`.                                   |
 | [authoring-agents.md](authoring-agents.md)           | You're writing an agent/role definition (registered subagent or role doc). |
 | [plugin-and-marketplace.md](plugin-and-marketplace.md) | You're packaging, testing, installing, or versioning this repo as a Claude Code plugin/marketplace. |
-| [dev-tooling-catalog.md](dev-tooling-catalog.md)     | You want the OSS analysis/reporting tools available and which Skill owns each.                      |
-| [dev-skill-taxonomy.md](dev-skill-taxonomy.md)       | You're placing a new dev-tooling tool (the `dev-analysis-`/`dev-test-`/`dev-report-` rule).         |
+| [dev-tooling-catalog.md](dev-tooling-catalog.md)     | You want the OSS analysis/reporting tools available and which internal producer owns each.          |
+| [dev-skill-taxonomy.md](dev-skill-taxonomy.md)       | You're placing a new dev-tooling tool, or want how the report producers are bundled internally.     |
 | [dev-report-framework.md](dev-report-framework.md)   | You're producing or consuming report fragments, or building the standalone HTML report.            |
 | [tools_implementation.md](tools_implementation.md)   | You're implementing the dev-tooling Skills (the ordered build backlog).                             |
 
@@ -47,3 +47,8 @@ skills/<name>/
 anti-pattern (three private `c2i-*` subagents in a top-level `agents/`) *to*
 this pattern. See [skills-vs-agents.md](skills-vs-agents.md#worked-example) for
 the before/after.
+
+`skills/dev-report-framework/` is the same pattern at pipeline scale: a host
+skill that bundles its whole producer pipeline as nested, non-discoverable
+`producers/<name>/` role bundles. See
+[skills-vs-agents.md](skills-vs-agents.md#host-skill-with-internal-producers).

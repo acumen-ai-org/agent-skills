@@ -88,9 +88,16 @@ Each line of `_plan.jsonl` is one entry:
   `bash "$S/run_tool.sh" <id> "<run>" "<reports.outputDir>" <report> <timeoutSeconds>`
   (it writes `OUT/<report>` and `OUT/<id>.exit`).
 - `kind:"skill"` **or** `heavy:true` → delegate to an isolated agent (the
-  Agent tool, `general-purpose`). The agent's task is the entry's `run` with
-  `args` and the scope range from `scope.json`. Capture its output verbatim to
-  `OUT/<report>`, and write the agent's success/failure as `0`/`1` to
+  Agent tool, `general-purpose`). Resolve `run` first:
+  `python3 "$S/resolve_producer.py" "<run>"`. Exit `0` prints the internal
+  producer directory (one of the eight first-party `dev-analysis-*` /
+  `dev-test-contracts` producers, bundled inside `dev-report-framework`) — the
+  agent's task is then **`cd` to that printed directory, then perform the
+  workflow in its `PRODUCER.md`**, with `args` and the scope range from
+  `scope.json`. Exit `2` means `run` is not a first-party producer (a
+  consumer's own custom skill/agent) — the agent's task is the entry's `run`
+  verbatim, exactly as before. Either way, capture output verbatim to
+  `OUT/<report>` and write the agent's success/failure as `0`/`1` to
   `OUT/<id>.exit`.
 
 When every entry has an `OUT/<id>.exit`:
@@ -141,12 +148,17 @@ reads every producer fragment, and `dev-report-status` reports whether they
 ran, so both must come after the producers and `dev-report-status` after the
 overview.
 
-1. **Overview.** Run `dev-report-overview` against the staging fragments dir
-   (see its `SKILL.md`); it stages `overview.fragment.json`.
-2. **Status.** Run `dev-report-status` (see its `SKILL.md`) with the
-   `build-status.json` written in B1 and the same staging fragments dir; it
-   stages `report-status.fragment.json`. Run it **after** the overview and
-   before the build.
+1. **Overview.** Run the internal producer
+   `${CLAUDE_PLUGIN_ROOT}/skills/dev-report-framework/producers/dev-report-overview`
+   — `cd` there first (per the framework's invocation contract), then follow
+   its `PRODUCER.md` against the staging fragments dir; it stages
+   `overview.fragment.json`.
+2. **Status.** Run the internal producer
+   `${CLAUDE_PLUGIN_ROOT}/skills/dev-report-framework/producers/dev-report-status`
+   (`cd` there first, follow its `PRODUCER.md`) with the `build-status.json`
+   written in B1 and the same staging fragments dir; it stages
+   `report-status.fragment.json`. Run it **after** the overview and before the
+   build.
 3. **Modules.** Resolve the module set before building:
 
    ```bash

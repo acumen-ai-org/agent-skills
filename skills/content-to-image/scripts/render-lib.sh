@@ -19,10 +19,10 @@ run_render() {
 
   local provider=${IMAGE_PROVIDER:-}
   if [ -z "$provider" ]; then
-    if [ -n "${OPENAI_API_KEY:-}" ] && [ -z "${AZURE_FOUNDRY_IMAGE_ENDPOINT:-}" ]; then
-      provider=openai
-    else
+    if [ -n "${AZURE_FOUNDRY_IMAGE_ENDPOINT:-}" ] || [ -n "${AZURE_OPENAI_ENDPOINT:-}" ]; then
       provider=foundry
+    else
+      provider=openai
     fi
   fi
 
@@ -47,8 +47,8 @@ run_render() {
         ;;
       foundry)
         # Defaults are placeholders; override via environment for a real deployment.
-        endpoint=${AZURE_FOUNDRY_IMAGE_ENDPOINT:-https://example-foundry.services.ai.azure.com}
-        deployment=${AZURE_FOUNDRY_IMAGE_DEPLOYMENT:-gpt-image-2}
+        endpoint=${AZURE_FOUNDRY_IMAGE_ENDPOINT:-${AZURE_OPENAI_ENDPOINT:-https://example-foundry.services.ai.azure.com}}
+        deployment=${AZURE_FOUNDRY_IMAGE_DEPLOYMENT:-${AZURE_OPENAI_DEPLOYMENT:-gpt-image-2}}
         # 2025-04-01-preview is the version gpt-image-2 image generation requires;
         # an older version returns HTTP 000 (timeout) on this endpoint.
         api_version=${AZURE_FOUNDRY_IMAGE_API_VERSION:-2025-04-01-preview}

@@ -1,9 +1,6 @@
----
-name: dev-analysis-security
-description: Analyzes a repository's attack surface — static network egress/ingress inventory, Semgrep taint/security findings, and committed secrets — then emits one `security` report fragment. Runs a stdlib network extractor, gitleaks (Docker), an optional trufflehog verified-secret pass, and the shared repo-root run-semgrep.sh with a security ruleset. Data-flow is folded in here, not a separate Skill. Any verified secret blocks (status error). Use when assessing taint paths, network surface, leaked credentials, or attack surface between releases for a report.
----
-
 # dev-analysis-security
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Answers one question — *what is the attack surface: taint, network egress,
 secrets?* — and emits exactly one report fragment, `category: security`.
@@ -17,7 +14,7 @@ The Semgrep step calls the **repo-root shared runner**
 (`scripts/run-semgrep.sh`), owned by `dev-analysis-quality`, with a security
 ruleset. There is exactly one Semgrep runner in the repo — this Skill never
 defines a second one
-([shared-runner rule](../../docs/dev-skill-taxonomy.md#the-shared-runner-rule)).
+([shared-runner rule](../../../../docs/dev-skill-taxonomy.md#the-shared-runner-rule)).
 
 ## Contents
 
@@ -159,7 +156,7 @@ The third positional is the ruleset by design: `dev-analysis-quality` passes a
 quality/SAST ruleset; this Skill calls the **same file** with a
 taint/network/security ruleset (`p/security-audit`, `p/owasp-top-ten`). Adding
 a second Semgrep runner is forbidden by the
-[shared-runner rule](../../docs/dev-skill-taxonomy.md#the-shared-runner-rule).
+[shared-runner rule](../../../../docs/dev-skill-taxonomy.md#the-shared-runner-rule).
 It writes `semgrep.raw.json`; `to-fragment.py` normalizes it into the security
 fragment.
 

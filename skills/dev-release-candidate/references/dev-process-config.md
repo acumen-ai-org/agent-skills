@@ -102,9 +102,16 @@ separated only so the summary groups them. Each entry:
 | `enabled` | `true` | `false` → skipped entirely. |
 
 An empty `analysis` + `review` is valid: the gate passes and a valid release
-candidate is still produced. Adding richer first-party analysis/report skills
-later is a config change (a new entry), not an orchestrator change — that is
-the phase-1/phase-2 seam.
+candidate is still produced. Adding analysis later is a config change (a new
+entry), not an orchestrator change — that is the phase-1/phase-2 seam.
+
+A `kind:"skill"` `run` naming one of the eight first-party producers
+(`dev-analysis-*`, `dev-test-contracts`) is resolved to that producer's
+bundled internal path and run for you; any other `run` is dispatched verbatim
+as your own command/agent. To add **your own** producer — recommended layout,
+the fragment + validator + fixed-`category` contract it must honor, and the
+wiring — see
+[Adding your own producer (consuming repos)](../../../docs/dev-report-framework.md#adding-your-own-producer-consuming-repos).
 
 ### reports
 

@@ -1,8 +1,10 @@
 # Authoring a producer that emits conformant fragments
 
-Every `dev-analysis-*` and `dev-test-*` Skill links its `to-fragment.py`
-authors here. A producer emits report fragments and knows nothing about HTML,
-JS, or D3 — the only coupling is the JSON contract in
+Every producer's `to-fragment.py` author reads this — the first-party
+producers bundled in `producers/` and a consuming repo's own producers alike
+(see [Adding your own producer](../../../docs/dev-report-framework.md#adding-your-own-producer-consuming-repos)).
+A producer emits report fragments and knows nothing about HTML, JS, or D3 —
+the only coupling is the JSON contract in
 [fragment-schema.md](fragment-schema.md). Get the JSON right and the framework
 renders it generically; no framework change is ever needed for a new producer.
 
