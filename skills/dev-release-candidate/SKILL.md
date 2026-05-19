@@ -172,7 +172,12 @@ overview.
    filter would be missing from the report.
 4. **Build.** Run the configured `reports.aggregate` command/skill (it should
    read `reports.outputDir`, write `reports.viewerPath`, and invoke
-   `dev-report-build` with the `--modules` list from step 3); otherwise log
+   `dev-report-build` with the `--modules` list from step 3). When
+   `reports.designDoc` is set, the aggregate step must also forward it as
+   `--design <file>` to `dev-report-build`, mirroring how `--modules` is
+   passed; omitting `--design` when `dev-process.json` `designDoc` is non-null
+   is a defect — the report would render with the default theme instead of the
+   configured one. If `reports.aggregate` is not configured, log
    `B3 skipped — no reports.aggregate configured` and continue. A real no-op,
    not a failure.
 
