@@ -1,9 +1,6 @@
----
-name: dev-analysis-dependencies
-description: Scans a project's declared and resolved dependencies for known vulnerabilities, generates an SBOM, and inventories the Rust unsafe surface, then emits one dev-report-fragment/v1 fragment in the dependencies category. Runs OWASP Dependency-Check, Trivy, Syft, and Grype via pinned Docker images and cargo-audit / cargo-geiger via the Rust toolchain, deduplicates findings across scanners by (package, CVE), groups the result per library (level-1 rows are libraries; their CVEs are expandable children), and sets status error / exit 4 on any critical finding. Use when assessing supply-chain risk for a release, building a dependency report, or checking a repo for vulnerable or unsafe dependencies.
----
-
 # dev-analysis-dependencies
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Producer Skill for the `dependencies` fragment. Each `scripts/run-*.sh`
 scanner writes a raw file; `scripts/to-fragment.py` normalizes one or more raw

@@ -1,9 +1,6 @@
----
-name: dev-analysis-mission
-description: Inventories a repository's product-mission documentation (MISSION.md, PRODUCT.md, VISION.md, docs/vision|mission|product|strategy|roadmap, OKR/PRD files), optionally collects the change inventory for a ref-range, and emits a dev-report-fragment/v1 fragment in the mission category. Maps significant changes to the mission goals they serve and flags scope creep. When no or only thin mission docs exist, the fragment becomes status info and lists structured reflection questions instead. Use when assessing whether recent work serves a stated product mission, or as the mission slot in a dev-report release diff.
----
-
 # dev-analysis-mission
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Locates product-intent documents, captures their content and factual metrics,
 and (with a ref-range) the change inventory. A deterministic script writes the
@@ -73,7 +70,7 @@ The fragment lands in a **separate** `<fragments_dir>`, never alongside
 `mission.raw.json` — `validate_fragments.py` validates every `*.json` in the
 directory it is pointed at, and the raw inventory is not a fragment.
 Normalizes the inventory into a [report
-fragment](../dev-report-framework/references/fragment-schema.md). No
+fragment](../../references/fragment-schema.md). No
 substantive docs → `status: info`, the reflection-questions body. Substantive
 docs with unmapped changed areas → `status: warn`; none to map → `status: ok`.
 The script never calls an LLM.

@@ -1,15 +1,12 @@
----
-name: dev-analysis-evolution
-description: Analyzes how a repository changed across releases from git history alone — per-release-pair churn and files-changed-by-extension, code-maat temporal coupling and authorship, git-of-theseus code-survival cohorts, and a per-PR per-author activity classification (new vs updated feature, bug, technical, configuration, data; new vs existing patterns; optional repo-defined "vibe coder"). Emits two dev-report-fragment/v1 fragments (evolution, author-activity), both category evolution. Use when building a release report's evolution section, reviewing what changed and who changed it between two release tags, or assessing change concentration and code aging.
----
-
 # dev-analysis-evolution
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Pure-git evolution analysis. Two-stage like `content-to-image`'s
 render→decode: collector/runner scripts write raw artifacts into one
 `<out_dir>`; [`scripts/to-fragment.py`](scripts/to-fragment.py) (stdlib only)
 normalizes them into two
-[report fragments](../dev-report-framework/references/fragment-schema.md). The
+[report fragments](../../references/fragment-schema.md). The
 scripts write only factual `metrics{}`/`body[]`; the
 [`references/`](references/) roles add `summary` and narrative.
 
@@ -58,7 +55,7 @@ Both `category: evolution`, written by `to-fragment.py`:
   `table` with a `type:"module"` column, and an author×PR-type `heatmap`.
 
 Full contract:
-[`references/fragment-schema.md` in dev-report-framework](../dev-report-framework/references/fragment-schema.md).
+[`references/fragment-schema.md` in dev-report-framework](../../references/fragment-schema.md).
 
 ## Extension drill-down and module filter
 
@@ -78,7 +75,7 @@ typing a folder or file name narrows the tree; sort applies within each level.
 
 **Module ids come from the shared resolver.** Both fragments tag rows with
 module ids produced by
-[`${CLAUDE_PLUGIN_ROOT}/scripts/modules.py`](../../scripts/modules.py) run
+[`${CLAUDE_PLUGIN_ROOT}/scripts/modules.py`](../../../../scripts/modules.py) run
 against the consuming repo's `dev-process.json` `modules` patterns —
 `to-fragment.py` shells out to it, never reimplementing the rule. When the
 repo has no `dev-process.json` (or its `modules` is empty) the resolver
@@ -275,7 +272,7 @@ inputs kept for re-runs.
 ## Exit codes
 
 Every runner (mirrors
-[the standard table](../../docs/tools_implementation.md#standard-exit-codes-every-runner-mirror-in-its-skillmd)):
+[the standard table](../../../../docs/tools_implementation.md#standard-exit-codes-every-runner-mirror-in-its-skillmd)):
 
 | Code | Meaning |
 | ---- | ------- |

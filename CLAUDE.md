@@ -43,7 +43,7 @@ Write the doc as if a new engineer is reading it cold, with no knowledge of what
 | Path             | Holds                                                                   |
 | ---------------- | ----------------------------------------------------------------------- |
 | `.claude-plugin/` | `plugin.json` + `marketplace.json` — this repo as an installable plugin. |
-| `skills/<name>/` | One self-contained Skill: `SKILL.md` + `references/` + `scripts/`.      |
+| `skills/<name>/` | One self-contained Skill: `SKILL.md` + `references/` + `scripts/`. A host Skill may also nest an internal pipeline at `producers/<name>/` (entry `PRODUCER.md`, not discovered) — see `skills/dev-report-framework/`. |
 | `agents/`        | Shared agent roles reused across more than one Skill.                   |
 | `docs/`          | How to author Skills/agents and how the repo is structured.             |
 | `references/`    | Repo-level reference material shared by 2+ Skills. Empty until needed.  |
@@ -84,3 +84,6 @@ Full index: [docs/README.md](docs/README.md).
    does not already know. Keep `SKILL.md` under 500 lines.
 
 The worked example of all four rules is `skills/content-to-image/`.
+`skills/dev-report-framework/` applies the same rules at pipeline scale: it
+bundles its dozen question-producers as nested, non-discoverable
+`producers/<name>/` role bundles instead of shipping each as its own Skill.

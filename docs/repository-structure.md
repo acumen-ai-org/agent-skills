@@ -101,6 +101,15 @@ roles in `/agents`. It must never depend on a privately-registered subagent —
 that coupling is exactly what the `references/` pattern removes. See
 [skills-vs-agents.md](skills-vs-agents.md).
 
+A host Skill may bundle an internal pipeline as nested producers under
+`skills/<host>/producers/<name>/`. Each is a self-contained bundle
+(`PRODUCER.md` + its own `references/` + `scripts/`); the entry file is
+`PRODUCER.md` (no `name:` frontmatter) so discovery never registers it as a
+separate Skill. This is the within-Skill `references/` pattern at pipeline
+scale, not an external dependency — the producers are part of the host. The
+canonical instance is `skills/dev-report-framework/producers/`; see
+[skills-vs-agents.md](skills-vs-agents.md#host-skill-with-internal-producers).
+
 ## Shared agents
 
 `/agents` holds role definitions reused by **more than one** Skill (e.g. a
@@ -162,6 +171,7 @@ reflects what actually exists.
 | ---------------- | -------------------------------------------------------------------- |
 | Skill directory  | lowercase, hyphens; matches the `name:` in its `SKILL.md`.           |
 | Skill `name`     | ≤ 64 chars, `[a-z0-9-]` only, no `anthropic`/`claude`. Prefer gerund (`processing-pdfs`) or noun phrase (`content-to-image`). |
+| Internal producer | `skills/<host>/producers/<name>/PRODUCER.md` (no frontmatter); `<name>` follows [dev-skill-taxonomy.md](dev-skill-taxonomy.md#naming). |
 | Reference file   | Describes its content: `art-direct.md`, not `doc2.md`.               |
 | Script           | Verb-first: `render.sh`, `decode.py`. Forward slashes everywhere.    |
 | Shared agent     | `<category>-<purpose>.md`, lowercase + hyphens (see authoring-agents). |

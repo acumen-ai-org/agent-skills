@@ -13,6 +13,7 @@ and *Agents vs Skills: Quick Guide*
 - [Decision guide](#decision-guide)
 - [The better pattern](#the-better-pattern)
 - [Worked example](#worked-example)
+- [Host skill with internal producers](#host-skill-with-internal-producers)
 - [Why not private skill agents](#why-not-private-skill-agents)
 
 ## The distinction
@@ -113,6 +114,37 @@ agents/                      # c2i-* removed; CLAUDE.md folded into docs/authori
 prompt."* The Skill is self-contained and portable; `SKILL.md` is short
 because the taxonomy lives in the role files and the theme registry in
 `references/themes.md` (progressive disclosure).
+
+## Host skill with internal producers
+
+The `references/`-role pattern scales to a whole pipeline.
+`skills/dev-report-framework/` is one discoverable Skill that **bundles its
+entire producer pipeline inside itself**. Each producer is a self-contained
+bundle:
+
+```
+skills/dev-report-framework/
+├── SKILL.md                       # the one discoverable entry point
+├── references/  scripts/          # the host's own contract + validate/build
+└── producers/
+    ├── dev-analysis-architecture/
+    │   ├── PRODUCER.md            # the producer workflow (not SKILL.md → not discovered)
+    │   ├── references/            # its synthesis roles + detail
+    │   └── scripts/               # its runners + to-fragment.py
+    └── …                          # one bundle per question-producer
+```
+
+The entry file is `PRODUCER.md`, **not** `SKILL.md`, and it carries no `name:`
+frontmatter — so skill discovery (which registers `skills/<name>/SKILL.md`)
+cannot register it under any discovery behavior. The producers are invoked only
+by the report pipeline; the host `SKILL.md` carries the roster and the
+[invocation contract](../skills/dev-report-framework/SKILL.md#internal-producers).
+This is the same "a role lives inside the Skill that uses it" rule as the
+worked example — applied to a pipeline of a dozen roles instead of three.
+A host bundle rather than a dozen top-level Skills because the producers answer
+one composite question ("is this release safe to ship?"), are never invoked
+independently, and a flat dozen `dev-*` entries would bury the skill index. The
+placement rule for a producer is [dev-skill-taxonomy.md](dev-skill-taxonomy.md).
 
 ## Why not private skill agents
 

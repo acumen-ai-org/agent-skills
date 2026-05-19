@@ -1,9 +1,6 @@
----
-name: dev-test-contracts
-description: Verifies that a provider still honors the consumer contracts that depend on it by running pact provider verification, then normalizes the result into one contracts report fragment. Selects the verifier by provider stack (pact-js, PactNet, pact-python, pact-rust), detecting the runtime and instructing on install rather than auto-installing; an optional Pact broker can serve consumer pacts via a pinned Docker image. The fragment status is the pass/fail verdict — any failed interaction is status error. Use when checking provider/consumer contract compatibility for a release or pull request.
----
-
 # dev-test-contracts
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 `dev-test-` Skill: it **executes** the provider against real consumer
 contracts. It does not statically inspect the contract — it runs the system

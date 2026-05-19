@@ -1,9 +1,6 @@
----
-name: dev-report-status
-description: Runs last in a release report pipeline, after dev-report-overview and before/with dev-report-build. Reads the orchestrator's build-status.json (one row per report producer with its ok/failed/skipped outcome and exit code), rolls the outcomes into counts, and emits a single category:"report" fragment titled "Report build status" — metric cards plus a producer table — pinned second in the nav right after the overview. A synthesis role then appends an "Open questions & inferences — release or not?" section and an advisory decision checklist. Use as the report's own self-check: it tells the reader which parts of the report actually got produced.
----
-
 # dev-report-status
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Produces the report's self-check fragment: the one fragment that reports
 whether every *other* producer ran. A stdlib script turns the orchestrator's

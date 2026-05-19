@@ -1,14 +1,15 @@
 ---
 name: dev-report-framework
-description: Aggregates report fragments emitted by dev-analysis-* and dev-test-* Skills into one standalone, navigable HTML release-candidate report folder per release, with a permanent two-column This-release/vs-production layout and a show/hide-previous-releases split-screen. Validates fragments against the dev-report-fragment/v1 contract, lays them out by category, embeds everything into index.html so the folder opens via file:// with no server, and upserts a top-level releases.json for prev/next navigation. Use when building or refreshing a release report from collected analysis fragments, or when authoring a producer Skill that must emit conformant fragment JSON.
+description: The release-report system. Aggregates the JSON fragments produced by its bundled internal producers (dev-analysis-*, dev-test-contracts, dev-report-overview/status/vs-production/release-diff) into one standalone, navigable HTML release-candidate report folder per release, with a permanent two-column This-release/vs-production layout and a show/hide-previous-releases split-screen. Validates fragments against the dev-report-fragment/v1 contract, lays them out by category, embeds everything into index.html so the folder opens via file:// with no server, and upserts a top-level releases.json for prev/next navigation. Use when building or refreshing a release report, or when authoring a producer that must emit conformant fragment JSON.
 ---
 
 # dev-report-framework
 
-The seam every `dev-analysis-*`/`dev-test-*` Skill targets. Producers emit
-JSON fragments; this Skill validates them and builds a self-contained report
-folder. The renderer dispatches generically on `body[].type`, so a new
-producer needs zero framework changes.
+The report system. Its question-producers are bundled internally (see
+[Internal producers](#internal-producers)), not discoverable standalone
+skills; each emits JSON fragments, this Skill validates them against the
+contract and builds a self-contained report folder. The renderer dispatches
+generically on `body[].type`, so a new producer needs zero framework changes.
 
 The contract is the only coupling. It lives in
 [`references/fragment-schema.md`](references/fragment-schema.md) and ships with
@@ -22,6 +23,7 @@ the Skill. The scripts are run, not read:
 - [The fragment contract at a glance](#the-fragment-contract-at-a-glance)
 - [Layout and UI](#layout-and-ui)
 - [Module filter](#module-filter)
+- [Internal producers](#internal-producers)
 - [Procedure](#procedure)
 - [Apply design](#apply-design)
 - [Standalone viewing and the file:// caveat](#standalone-viewing-and-the-file-caveat)
@@ -164,6 +166,52 @@ two-column view, the top menu, the show/hide-previous split, and the
 table filter. **Inert when absent:** if no module ids exist anywhere the
 selector is not rendered, so reports that do not use modules look unchanged.
 
+## Internal producers
+
+The question-producers are **bundled inside this Skill**, not discoverable
+standalone skills. Each lives at `producers/<name>/PRODUCER.md` with its own
+`references/` and `scripts/`, and is invoked only by the report pipeline —
+`dev-release-candidate` (analysis/review fan-out) and the
+[Procedure](#procedure) aggregation steps — never directly by a user.
+
+| Producer | Fragment `category` | Invoked via |
+| -------- | ------------------- | ----------- |
+| `dev-analysis-architecture`  | `architecture` | `dev-process.json` `analysis`/`review` |
+| `dev-analysis-evolution`     | `evolution`    | `dev-process.json` |
+| `dev-analysis-dependencies`  | `dependencies` | `dev-process.json` |
+| `dev-analysis-quality`       | `quality`      | `dev-process.json` |
+| `dev-analysis-security`      | `security`     | `dev-process.json` |
+| `dev-analysis-schema`        | `schema`       | `dev-process.json` |
+| `dev-analysis-mission`       | `mission`      | `dev-process.json` |
+| `dev-test-contracts`         | `contracts`    | `dev-process.json` |
+| `dev-report-overview`        | `overview`     | pipeline (after producers) |
+| `dev-report-status`          | `report`       | pipeline (after overview) |
+| `dev-report-vs-production`   | *(backfills in place)* | pipeline (before overview) |
+| `dev-report-release-diff`    | `report`       | pipeline / on request |
+
+The eight `dev-process.json`-reachable names are mapped to their internal path
+by [`../dev-release-candidate/scripts/resolve_producer.py`](../dev-release-candidate/scripts/resolve_producer.py)
+(unknown name → exit `2`, a config error, never a guess). The four pipeline
+producers are invoked directly by the [Procedure](#procedure) / the
+orchestrator's fixed-order aggregation; they are never named in
+`dev-process.json`.
+
+### Invocation contract
+
+An internal producer is run by an isolated agent whose task is the contents of
+`producers/<name>/PRODUCER.md`. Before any step, the agent **MUST**:
+
+```bash
+cd "${CLAUDE_PLUGIN_ROOT}/skills/dev-report-framework/producers/<name>"
+```
+
+All `scripts/…` self-calls in `PRODUCER.md` resolve there. Inputs (`$TARGET`,
+`$OUT_DIR`, `<fragments-dir>`, `<repo>`, the scope range) are absolute, passed
+by the orchestrator, and unaffected by the `cd`. The validator stays at the
+unchanged absolute path
+`${CLAUDE_PLUGIN_ROOT}/skills/dev-report-framework/scripts/validate_fragments.py`
+— a producer calls it by that absolute path (no rewrite after the move).
+
 ## Procedure
 
 Copy this checklist into your response and tick as you go:
@@ -181,12 +229,14 @@ Put every fragment a producer emitted into one staging dir (flat, `*.json`).
 The build reads each fragment's `category` and lays it out under
 `data/<category>/`; you do not pre-create the category folders.
 
-The producer pipeline is fixed-order: every `dev-analysis-*`/`dev-test-*`
-producer first, then `dev-report-overview`, then `dev-report-status` (the
+The producer pipeline is fixed-order: every analysis/test producer
+(`producers/dev-analysis-*`, `producers/dev-test-contracts`) first, then
+`producers/dev-report-overview`, then `producers/dev-report-status` (the
 `report-status` self-check fragment) **after** the overview, then this build.
-The overview reads every producer fragment and `dev-report-status` reports
-whether they ran, so both come after the producers and `dev-report-status`
-after `dev-report-overview`.
+Each runs per the [invocation contract](#internal-producers). The overview
+reads every producer fragment and `dev-report-status` reports whether they
+ran, so both come after the producers and `dev-report-status` after the
+overview.
 
 ### 2. Validate
 
@@ -308,13 +358,16 @@ option, not part of v1.
 
 ## Authoring a producer
 
-If you are writing a `dev-analysis-*`/`dev-test-*` Skill that must emit
-fragments, follow
+The first-party producers are the internal bundles in
+[`producers/`](#internal-producers). Whether you are editing one of those or a
+consuming repo is adding its own, the pattern is the same — follow
 [`references/authoring-a-dev-analysis-skill.md`](references/authoring-a-dev-analysis-skill.md):
-the script writes factual `metrics{}` + `body[]`, the Skill's
-`*-synthesis.md` role enriches `summary` and adds narrative, the merged JSON
-is validated with `validate_fragments.py` before handoff. Keep `id` stable
-across releases — it is the cross-release diff key.
+the script writes factual `metrics{}` + `body[]`, a `*-synthesis.md` role
+enriches `summary` and adds narrative, the merged JSON is validated with
+`validate_fragments.py` before handoff. Keep `id` stable across releases — it
+is the cross-release diff key. A consuming repo wires **its own** producers
+without touching this Skill — see
+[Adding your own producer](../../docs/dev-report-framework.md#adding-your-own-producer-consuming-repos).
 
 ## Outputs
 

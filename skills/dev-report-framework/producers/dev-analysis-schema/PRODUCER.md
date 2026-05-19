@@ -1,9 +1,6 @@
----
-name: dev-analysis-schema
-description: Diffs the API and schema surface of a repository between two git refs — OpenAPI (oasdiff, run separately over the public and private split), GraphQL SDL (graphql-inspector), and MCP tool/resource JSON-Schemas (a stdlib structural diff) — then emits one dev-report-fragment/v1 fragment in the schema category. status is error when any public breaking change exists, warn for private-only breaking or non-breaking change, ok with no diff. Use when assessing the contract impact of a release, reviewing breaking-change risk, or producing the API & contract surface slide of a release diff. No database schema diff.
----
-
 # dev-analysis-schema
+
+> **Invocation.** This is an internal producer of `dev-report-framework`, not a standalone skill. The report pipeline `cd`s into this directory before running these steps, so every `scripts/…` self-call resolves here; all inputs are absolute paths. See the invocation contract in [`../../SKILL.md`](../../SKILL.md).
 
 Produces one `schema` fragment for a release report: what changed across the
 OpenAPI, GraphQL, and MCP contract surface between `ref_a` and `ref_b`, scored
@@ -15,7 +12,7 @@ engines and writes a merged `schema-diff.json` with `summary.hasDiff`;
 [`references/schema-diff-summary.md`](references/schema-diff-summary.md) role
 enriches the prose — **only when `hasDiff` is true**. Scripts never call an
 LLM. The contract this targets is
-[`dev-report-framework`](../dev-report-framework/references/fragment-schema.md).
+[`dev-report-framework`](../../references/fragment-schema.md).
 
 ## Contents
 
