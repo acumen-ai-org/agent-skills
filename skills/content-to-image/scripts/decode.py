@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Decode a gpt-image JSON response into a PNG.
+"""Decode an image-generation JSON response into a PNG.
 
-Provider-agnostic: Azure Foundry (gpt-image-2) and OpenAI (gpt-image-1) both
-return {"data":[{"b64_json":...}]}, so this handles either unchanged.
+Provider-agnostic across the three backends content-to-image renders with:
+- OpenAI (gpt-image-1) and Azure Foundry (gpt-image-2): {"data":[{"b64_json":...}]}
+- Gemini (gemini-3.1-flash-image-preview): the b64 image lives at
+  candidates[].content.parts[].inlineData.data
 
 Usage: decode.py <response.json> <out.png>
 
@@ -17,6 +19,18 @@ import pathlib
 import sys
 
 
+def extract_b64(resp):
+    items = resp.get("data")
+    if isinstance(items, list) and items and items[0].get("b64_json"):
+        return items[0]["b64_json"]
+    for candidate in resp.get("candidates", []):
+        for part in candidate.get("content", {}).get("parts", []):
+            inline = part.get("inlineData") or part.get("inline_data")
+            if inline and inline.get("data"):
+                return inline["data"]
+    return None
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         sys.stderr.write("usage: decode.py <response.json> <out.png>\n")
@@ -25,15 +39,15 @@ def main() -> int:
     resp_path = pathlib.Path(sys.argv[1])
     out_path = pathlib.Path(sys.argv[2])
 
-    data = json.loads(resp_path.read_text())
-    if "data" not in data or not data["data"] or "b64_json" not in data["data"][0]:
+    b64 = extract_b64(json.loads(resp_path.read_text()))
+    if b64 is None:
         # Not an exception: a well-formed error response (rate limit, content
         # filter, bad prompt) lands here. The caller keeps response.json and
         # surfaces it rather than writing a corrupt PNG.
         sys.stderr.write(f"image API returned no image; see {resp_path}\n")
         return 2
 
-    out_path.write_bytes(base64.b64decode(data["data"][0]["b64_json"]))
+    out_path.write_bytes(base64.b64decode(b64))
     print(f"wrote {out_path}")
     return 0
 
