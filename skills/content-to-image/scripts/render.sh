@@ -5,10 +5,9 @@
 #   <brief.md>  final image-generation prompt (prompt-synth output, + theme block if any)
 #   <out.json>  where the raw API response is written
 #
-# Provider: set IMAGE_PROVIDER=foundry|openai. If unset, defaults to openai
-# when OPENAI_API_KEY is set and no Foundry endpoint is configured, else
-# foundry. Both providers return {"data":[{"b64_json":...}]}, so decode.py is
-# provider-agnostic.
+# Provider: set IMAGE_PROVIDER=gemini|foundry|openai. If unset, defaults to
+# gemini when GEMINI_API_KEY is set, else foundry when a Foundry endpoint is
+# configured, else openai. decode.py is provider-agnostic across all three.
 #
 # Exit: 0 on HTTP 2xx; non-zero on transport failure. The HTTP status is
 # printed on stderr-style trailing line ("HTTP <code> time=<s>") so the caller

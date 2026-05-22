@@ -19,7 +19,9 @@ run_render() {
 
   local provider=${IMAGE_PROVIDER:-}
   if [ -z "$provider" ]; then
-    if [ -n "${AZURE_FOUNDRY_IMAGE_ENDPOINT:-}" ] || [ -n "${AZURE_OPENAI_ENDPOINT:-}" ]; then
+    if [ -n "${GEMINI_API_KEY:-}" ]; then
+      provider=gemini
+    elif [ -n "${AZURE_FOUNDRY_IMAGE_ENDPOINT:-}" ] || [ -n "${AZURE_OPENAI_ENDPOINT:-}" ]; then
       provider=foundry
     else
       provider=openai
@@ -35,6 +37,14 @@ run_render() {
 
   build_request() {
     case "$1" in
+      gemini)
+        model=${GEMINI_IMAGE_MODEL:-gemini-3.1-flash-image-preview}
+        base_url=${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+        : "${GEMINI_API_KEY:?IMAGE_PROVIDER=gemini requires GEMINI_API_KEY}"
+        url="${base_url}/models/${model}:generateContent"
+        auth_header="x-goog-api-key: ${GEMINI_API_KEY}"
+        body=$(GEMINI_IMAGE_SIZE="${GEMINI_IMAGE_SIZE-2K}" python3 -c "import json,os,sys; img={'aspectRatio':'3:2'}; sz=os.environ.get('GEMINI_IMAGE_SIZE',''); img={**img,**({'imageSize':sz} if sz else {})}; print(json.dumps({'contents':[{'parts':[{'text':sys.stdin.read()}]}],'generationConfig':{'imageConfig':img}}))" <<<"$prompt")
+        ;;
       openai)
         model=${OPENAI_IMAGE_MODEL:-gpt-image-1}
         base_url=${OPENAI_BASE_URL:-https://api.openai.com/v1}
@@ -63,7 +73,7 @@ run_render() {
         fi
         ;;
       *)
-        echo "unknown IMAGE_PROVIDER='$1' (expected foundry|openai)" >&2
+        echo "unknown IMAGE_PROVIDER='$1' (expected gemini|foundry|openai)" >&2
         return 1
         ;;
     esac
@@ -106,7 +116,7 @@ run_render() {
 
   attempted="${provider}(HTTP ${last_http_status})"
 
-  if [ "$provider" = foundry ] && openai_available; then
+  if [ "$provider" != openai ] && openai_available; then
     do_request openai || return 1
     if ! is_overload; then
       render_attempt_log="${attempted}, openai-fallback(HTTP ${last_http_status})"

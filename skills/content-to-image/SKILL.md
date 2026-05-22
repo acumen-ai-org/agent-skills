@@ -1,6 +1,6 @@
 ---
 name: content-to-image
-description: Converts a piece of text into a single explanatory illustration via a 3-step pipeline (extract → art-direct → prompt-synth), then renders it with gpt-image on Azure Foundry or the OpenAI API directly. The art-direct step picks one of 13 functional types via Visme's three-question rule plus a visual-style modifier (line-art / photography / illustration / tactile / isometric / explorative), with optional named themes. Use when an explanatory or hero image is needed from text — standalone or for report hero slots.
+description: Converts a piece of text into a single explanatory illustration via a 3-step pipeline (extract → art-direct → prompt-synth), then renders it with Gemini (gemini-3.1-flash-image-preview), gpt-image on Azure Foundry, or the OpenAI API directly. Gemini is the default when GEMINI_API_KEY is set. The art-direct step picks one of 13 functional types via Visme's three-question rule plus a visual-style modifier (line-art / photography / illustration / tactile / isometric / explorative), with optional named themes. Use when an explanatory or hero image is needed from text — standalone or for report hero slots.
 ---
 
 # content-to-image
@@ -41,9 +41,17 @@ before:
 | `$KEEP_FILES` | `false`                                | `false` deletes the 4 intermediate trace files after the PNG is decoded. `true` keeps them for re-rendering. |
 
 Render env vars (used by `scripts/render.sh`). `IMAGE_PROVIDER` selects the
-backend: `foundry` or `openai`. If unset, it defaults to `openai` when
-`OPENAI_API_KEY` is set and no Foundry endpoint is configured, else `foundry`.
+backend: `gemini`, `foundry`, or `openai`. If unset, it defaults to `gemini`
+when `GEMINI_API_KEY` is set, else `foundry` when a Foundry endpoint is
+configured, else `openai`.
 
+- **Gemini** (`IMAGE_PROVIDER=gemini`): `GEMINI_API_KEY` (required),
+  `GEMINI_IMAGE_MODEL` (default `gemini-3.1-flash-image-preview`),
+  `GEMINI_IMAGE_SIZE` (default `2K`; one of `512`/`1K`/`2K`/`4K` — a Gemini-3
+  image feature; set it empty when overriding to `gemini-2.5-flash-image`, which
+  has no `imageSize`), `GEMINI_BASE_URL`
+  (default `https://generativelanguage.googleapis.com/v1beta`). A direct REST
+  call — no extra CLI tool. Requests 3:2 via `imageConfig.aspectRatio`.
 - **OpenAI** (`IMAGE_PROVIDER=openai`): `OPENAI_API_KEY` (required),
   `OPENAI_IMAGE_MODEL` (default `gpt-image-1`), `OPENAI_BASE_URL`
   (default `https://api.openai.com/v1`). No extra CLI tool needed — it's a
@@ -55,8 +63,9 @@ backend: `foundry` or `openai`. If unset, it defaults to `openai` when
 
 Requirements: `bash`, `curl`, and `python3` (standard library only — no pip
 packages). The `az` CLI is needed *only* for the Foundry path when
-`AZURE_OPENAI_APIKEY` is unset; the OpenAI path needs no extra tooling. The
-render step makes an outbound HTTPS call.
+`AZURE_OPENAI_APIKEY` is unset; the Gemini and OpenAI paths need no extra
+tooling. The render step makes an outbound HTTPS call. All three providers'
+responses are decoded by the same provider-agnostic `decode.py`.
 
 ## Procedure
 
@@ -144,8 +153,8 @@ without re-running the LLM steps.
 entirely. It builds a minimal image prompt directly from the given text — no
 extract, no art-direct, no prompt-synth, no theme overlay — and reuses
 `render-lib.sh` (shared with `render.sh`), so it gets the **same provider call
-and the same upstream-overload retry/fallback** (Foundry "EngineOverloaded" →
-OpenAI fallback → 5s/15s/30s backoff) with no duplicated logic.
+and the same upstream-overload retry/fallback** (a non-OpenAI provider's
+overload → OpenAI fallback → 5s/15s/30s backoff) with no duplicated logic.
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/text-to-image.sh" "<short text>" "<out-image-path>"
@@ -197,19 +206,20 @@ kept regardless of `$KEEP_FILES`.
 - **Art-direct picks "Interactive"** → not allowed for static rendering; the
   role's selection rule already promotes the runner-up.
 - **Image API non-2xx** → `<slug>.json` written, error surfaced, no PNG. Exit 2.
-- **HTTP 401/403** → wrong/missing key for the active provider: `OPENAI_API_KEY`
-  (openai) or `AZURE_OPENAI_APIKEY` / `az login` (foundry).
+- **HTTP 401/403** → wrong/missing key for the active provider: `GEMINI_API_KEY`
+  (gemini), `OPENAI_API_KEY` (openai), or `AZURE_OPENAI_APIKEY` / `az login`
+  (foundry).
 - **API timeout (HTTP 000), Foundry** → confirm `AZURE_FOUNDRY_IMAGE_API_VERSION`
   is `2025-04-01-preview`.
 - **Rate limit (HTTP 429)** → ~10/min; for batches > 10, render in waves with
   a 30s sleep between waves.
-- **Upstream overload (Foundry "EngineOverloaded", HTTP 429/503, or a body
+- **Upstream overload (HTTP 429/503, Foundry "EngineOverloaded", or a body
   mentioning "overloaded"/"capacity")** → handled automatically by
-  `render.sh`: a Foundry overload first falls back once to OpenAI if
-  `OPENAI_API_KEY` is set, then (if still overloaded or no fallback exists)
-  retries the active provider after 5s, 15s, 30s backoff. Only after all of
-  these fail does it exit 2 with an upstream-overload message. Non-overload
-  errors (auth, bad request, network) are not retried.
+  `render.sh`: a non-OpenAI provider's overload (Gemini or Foundry) first falls
+  back once to OpenAI if `OPENAI_API_KEY` is set, then (if still overloaded or
+  no fallback exists) retries the active provider after 5s, 15s, 30s backoff.
+  Only after all of these fail does it exit 2 with an upstream-overload message.
+  Non-overload errors (auth, bad request, network) are not retried.
 - **One-shot generation fails** (`scripts/text-to-image.sh`, any reason) → a
   diagnostic SVG with the `Failed to generate image` headline and a per-attempt
   provider+status list is still written to the output path; the script exits

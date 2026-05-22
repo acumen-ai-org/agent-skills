@@ -19,8 +19,8 @@ taxonomy with a secondary visual-style modifier).
 ## When invoked
 
 Step 3. Input is the art-direct blueprint verbatim. Produce the single
-image-generation prompt sent to the gpt-image model (the Skill's
-`scripts/render.sh` handles the provider — Azure Foundry or OpenAI).
+image-generation prompt sent to the image model (the Skill's
+`scripts/render.sh` handles the provider — Gemini, Azure Foundry, or OpenAI).
 
 ## Visual-style opening (pick one from the modifier)
 
