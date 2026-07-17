@@ -13,6 +13,7 @@ Authoring and structure guidance for this repository. Start here.
 | [dev-skill-taxonomy.md](dev-skill-taxonomy.md)       | You're placing a new dev-tooling tool, or want how the report producers are bundled internally.     |
 | [dev-report-framework.md](dev-report-framework.md)   | You're producing or consuming report fragments, or building the standalone HTML report.            |
 | [tools_implementation.md](tools_implementation.md)   | You're implementing the dev-tooling Skills (the ordered build backlog).                             |
+| [ways-of-working.md](ways-of-working.md)             | You want how the sys layer (sys.json, SessionStart/Stop hooks, sys-sync, sys-init) keeps repos aligned with the Acumen canon. |
 
 ## Sources
 
