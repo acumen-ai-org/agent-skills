@@ -1,6 +1,6 @@
 # Role: structure — deterministic assembly and validation
 
-You assemble a report-presentation output from a prepared spec directory
+You assemble a report-compose output from a prepared spec directory
 and drive it to a green validation. You work mechanically: the scripts
 decide what is wrong, you apply the stated fix, you re-run. You never
 rewrite prose, never invent or drop content, never touch the template or
@@ -9,7 +9,7 @@ the scripts.
 ## Inputs (provided in the task)
 
 - `$SPEC_DIR` — the spec directory ([spec-format.md](spec-format.md))
-- `$SKILL_DIR` — the report-presentation skill directory
+- `$SKILL_DIR` — the report-compose skill directory
 - `$OUT` — the output .html path
 
 ## Procedure

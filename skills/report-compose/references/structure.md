@@ -45,9 +45,11 @@ values.
 
 ## What each mode builds from the tree
 
-- **full** — a sidebar tree (up to three levels) with scroll-spy; units
-  flow as one document in authored order, with an area/category heading
-  band injected where a group starts.
+- **full** — when areas exist, an **area tab bar** on top (one tab per
+  area, squared segmented control): the document and the sidebar show only
+  the active area; a deep link into another area activates its tab. The
+  sidebar lists categories and menu items with scroll-spy; a category
+  heading band marks each group in the flow.
 - **slides / xr** — a linear sequence: cover, then for each area a
   **gateway**, for each category a **gateway**, then that group's units.
 
@@ -67,7 +69,8 @@ only in slides/xr modes; full mode navigates with the sidebar instead.
   `data-default-mode` on `<body>` ($MODE at authoring time, default
   `full`).
 - A runtime switcher (fixed, top-right) flips modes; the reader's current
-  unit is preserved across the switch.
+  unit is preserved across the switch. In full mode the switcher shows
+  word labels; in slides and xr it shows icons only.
 - `#<unit-id>` deep-links to a unit in any mode: full scrolls to it,
   slides/xr open its slide/panel.
 

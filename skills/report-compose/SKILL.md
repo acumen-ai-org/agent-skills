@@ -1,9 +1,9 @@
 ---
-name: report-presentation
+name: report-compose
 description: Generates a single self-contained HTML file that presents arbitrary input content (markdown, JSON, text, docs) with all three view modes baked in — full (scrollable report document with a three-level sidebar), slides (keyboard/click-navigable deck with level-gateway slides), and xr (glasses-style spatial UI with floating panels in dark space). The initial mode is picked by ?mode= querystring; a runtime switcher flips modes in place. Content structures into up to three navigation levels (Areas, Categories, Menu items — any subset works). Accepts an optional DESIGN.md (palette, typography, logo, tone) with an oakai-style mineral-gray default. Runs as two roles: a content role that makes sense of the input, and a fast structure role that assembles and validates the file with deterministic scripts. Use when content needs to become a polished standalone HTML report, presentation, slide deck, or XR/spatial-style page.
 ---
 
-# report-presentation
+# report-compose
 
 Turns content into **one .html file** that opens via `file://` on any
 machine and carries all three modes — `full`, `slides`, `xr` —
@@ -64,7 +64,7 @@ a browser; the pinned CDN libraries need network, the content does not.
   attributes (any subset, used consistently); the engine derives the
   sidebar, gateway slides, and panel sequence. See
   [structure.md](references/structure.md).
-- **Provenance**: `<meta name="generator" content="report-presentation">`
+- **Provenance**: `<meta name="generator" content="report-compose">`
   plus a visible line with ISO date · source description (authored in the
   cover; the build generates the footer from `report.json`).
 - **Graceful degradation**: a network- or script-blocked open loses

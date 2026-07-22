@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate a report-presentation output file against the single-file contract.
+"""Validate a report-compose output file against the single-file contract.
 
 Usage: validate_output.py <report.html>
 
@@ -10,7 +10,7 @@ Checks:
     no other hosts
   - every jsdelivr <script>/<link> carries integrity + crossorigin and pins a
     version with @<semver> in the URL (Google Fonts is the sole SRI exemption)
-  - provenance: <meta name="generator" content="report-presentation"> and an
+  - provenance: <meta name="generator" content="report-compose"> and an
     ISO YYYY-MM-DD date in body text
 
 Reports byte size on stdout. Sizes above 25 MB print a warning (browsers
@@ -39,7 +39,7 @@ def is_allowed(url):
     if url.startswith(ALLOWED_SCHEMES):
         return True
     return any(url == origin or url.startswith(origin + "/") for origin in ALLOWED_ORIGINS)
-GENERATOR_RE = re.compile(r"^report-presentation$")
+GENERATOR_RE = re.compile(r"^report-compose$")
 ISO_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 JSDELIVR_VERSION_RE = re.compile(r"@\d+\.\d+\.\d+(?:[./-]|$)")
 CSS_URL_RE = re.compile(r"url\(\s*['\"]?([^'\")]+)['\"]?\s*\)")
@@ -119,9 +119,9 @@ def validate(path):
                 violations.append(f"CSS url({url}) is not an allowed reference")
 
     if parser.generator is None:
-        violations.append('missing <meta name="generator" content="report-presentation">')
+        violations.append('missing <meta name="generator" content="report-compose">')
     elif not GENERATOR_RE.match(parser.generator):
-        violations.append(f'generator meta "{parser.generator}" is not exactly "report-presentation"')
+        violations.append(f'generator meta "{parser.generator}" is not exactly "report-compose"')
 
     if not ISO_DATE_RE.search(" ".join(parser.body_text_parts)):
         violations.append("no ISO YYYY-MM-DD provenance date found in body text")

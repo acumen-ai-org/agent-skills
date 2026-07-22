@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="generator" content="report-presentation">
+<meta name="generator" content="report-compose">
 <title>Demo report — all modes</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -100,9 +100,43 @@ code { font-family: var(--font-mono); font-size: 0.9em; }
   border-radius: 999px;
   cursor: pointer;
   min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 .mode-switch button.active { background: var(--accent); color: #fbfbf9; }
 body.mode-xr .mode-switch button.active { color: #10140e; }
+.mode-switch .icon { display: none; }
+body.mode-slides .mode-switch .label, body.mode-xr .mode-switch .label { display: none; }
+body.mode-slides .mode-switch .icon, body.mode-xr .mode-switch .icon { display: block; }
+body.mode-slides .mode-switch button, body.mode-xr .mode-switch button { padding: 0.35rem 0.7rem; }
+
+.area-tabs { display: none; }
+body.mode-full.has-areas .area-tabs {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 2px;
+  width: fit-content;
+  position: sticky;
+  top: 0.6rem;
+  z-index: 8;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+.area-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 600 0.85rem var(--font-body);
+  padding: 0.45rem 1.1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  min-height: 34px;
+}
+.area-tabs button.active { background: var(--accent); color: #fbfbf9; }
 
 .layout { display: block; }
 body.mode-full .layout {
@@ -125,7 +159,6 @@ body.mode-full .sidebar {
 }
 .sidebar ul { list-style: none; margin: 0; padding: 0; max-width: none; }
 .sidebar li { margin: 0; }
-.sidebar .lvl-area { font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.72rem; color: var(--muted); padding: 0.9rem 0.6rem 0.25rem; }
 .sidebar .lvl-category { font-weight: 600; padding: 0.45rem 0.6rem 0.1rem; color: var(--text); }
 .sidebar a {
   display: block;
@@ -145,17 +178,10 @@ body.mode-full .unit.cover h1 { font-size: 2.2rem; margin: 0 0 0.3rem; }
 body.mode-full .unit h2 { font-size: 1.45rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; scroll-margin-top: 4rem; }
 .band { display: none; }
 body.mode-full .band { display: block; margin: calc(var(--space) * 3) 0 var(--space); }
-body.mode-full .band.area-band {
-  font: 600 0.78rem var(--font-body);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--accent);
-  border-top: 2px solid var(--accent);
-  padding-top: 0.5rem;
-}
 body.mode-full .band.category-band { font: 600 1.05rem var(--font-serif); color: var(--muted); }
 body.mode-full .gateway { display: none; }
 body.mode-full .deck-only { display: none; }
+body.mode-full .area-hidden { display: none; }
 body.mode-slides .full-only, body.mode-xr .full-only { display: none; }
 
 body.mode-slides main .unit { display: none; }
@@ -351,20 +377,30 @@ body.mode-full footer.report {
 </head>
 <body data-default-mode="full">
 <nav class="mode-switch" aria-label="Mode">
-  <button type="button" data-mode="full">Full</button>
-  <button type="button" data-mode="slides">Slides</button>
-  <button type="button" data-mode="xr">XR</button>
+  <button type="button" data-mode="full" title="Full" aria-label="Full">
+    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 3.5h11M2.5 6.5h11M2.5 9.5h7M2.5 12.5h9"/></svg>
+    <span class="label">Full</span>
+  </button>
+  <button type="button" data-mode="slides" title="Slides" aria-label="Slides">
+    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="3.5" width="13" height="9" rx="1"/><path d="M6.5 6l3.5 2-3.5 2z" fill="currentColor" stroke="none"/></svg>
+    <span class="label">Slides</span>
+  </button>
+  <button type="button" data-mode="xr" title="XR" aria-label="XR">
+    <svg class="icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 6.5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2.5a2 2 0 0 1-2 2h-2a1.6 1.6 0 0 1-1.3-.7L8 9l-1.2 1.3a1.6 1.6 0 0 1-1.3.7h-2a2 2 0 0 1-2-2z"/></svg>
+    <span class="label">XR</span>
+  </button>
 </nav>
 <div class="deck-progress"></div>
 <div class="deck-counter"></div>
 <nav class="rail" aria-label="Panels"></nav>
 <div class="layout">
+  <nav class="area-tabs" aria-label="Areas"></nav>
   <nav class="sidebar" aria-label="Contents"></nav>
   <main id="content">
     <section class="unit cover" id="cover">
       <h1>Demo report — all modes</h1>
       <p>One file, three modes: a scrollable document, a slide deck, and a spatial XR view. Switch with the control in the top-right corner, or open with <code>?mode=slides</code> / <code>?mode=xr</code>.</p>
-      <p class="provenance">2026-07-22 · source: report-presentation template demo content</p>
+      <p class="provenance">2026-07-22 · source: report-compose template demo content</p>
     </section>
     <section class="unit" id="tiles-callouts" data-area="Alpha" data-category="Basics" data-menu="Tiles &amp; callouts">
       <h2>Tiles &amp; callouts</h2>
@@ -446,7 +482,7 @@ backoff: exponential</script>
   </main>
 </div>
 <footer class="report">
-  Generated by report-presentation on 2026-07-22.
+  Generated by report-compose on 2026-07-22.
   Pinned dependencies: d3 7.9.0, plot 0.6.17, mermaid 11.4.1, highlight.js 11.10.0, jsdiff 7.0.0, excalidraw-utils 0.1.2 — content remains readable without them.
 </footer>
 <script>
@@ -565,16 +601,20 @@ window.drawCharts = function () {
     });
     area.cats.forEach(function (cat, ci) {
       var first = cat.units[0];
+      cat.units.forEach(function (u) { u.dataset.ai = ai; });
       if (useAreas && ci === 0) {
-        main.insertBefore(makeBand("area", area.label), first);
         var gwa = makeGateway("area", area.label, "", areaEntries, ai);
         gwa.id = "gw-area-" + slug(area.label);
+        gwa.dataset.ai = ai;
         main.insertBefore(gwa, first);
       }
       if (useCategories) {
-        main.insertBefore(makeBand("category", cat.label), first);
+        var bandC = makeBand("category", cat.label);
+        bandC.dataset.ai = ai;
+        main.insertBefore(bandC, first);
         var gwc = makeGateway("category", cat.label, area.label, catEntries, ci);
         gwc.id = "gw-category-" + slug(area.label + "-" + cat.label);
+        gwc.dataset.ai = ai;
         main.insertBefore(gwc, first);
       }
     });
@@ -585,22 +625,18 @@ window.drawCharts = function () {
   var sidebar = document.querySelector(".sidebar");
   if (useMenus) {
     var rootUl = document.createElement("ul");
-    tree.forEach(function (area) {
-      if (useAreas) {
-        var liA = document.createElement("li");
-        liA.className = "lvl-area";
-        liA.textContent = area.label;
-        rootUl.appendChild(liA);
-      }
+    tree.forEach(function (area, ai) {
       area.cats.forEach(function (cat) {
         if (useCategories) {
           var liC = document.createElement("li");
           liC.className = "lvl-category";
           liC.textContent = cat.label;
+          liC.dataset.ai = ai;
           rootUl.appendChild(liC);
         }
         cat.units.forEach(function (u) {
           var li = document.createElement("li");
+          li.dataset.ai = ai;
           var a = document.createElement("a");
           a.href = "#" + u.id;
           a.textContent = u.dataset.menu;
@@ -612,6 +648,40 @@ window.drawCharts = function () {
     sidebar.appendChild(rootUl);
   }
   if (!useMenus) body.classList.add("no-nav");
+
+  var areaTabsEl = document.querySelector(".area-tabs");
+  var activeArea = -1;
+  function setArea(i) {
+    if (!useAreas || i === activeArea) return;
+    activeArea = i;
+    Array.prototype.forEach.call(areaTabsEl.children, function (btn, k) {
+      btn.classList.toggle("active", k === i);
+    });
+    document.querySelectorAll("[data-ai]").forEach(function (el) {
+      el.classList.toggle("area-hidden", +el.dataset.ai !== i);
+    });
+  }
+  function areaOf(id) {
+    var el = document.getElementById(id);
+    return el && el.dataset.ai !== undefined ? +el.dataset.ai : -1;
+  }
+  function ensureArea(id) {
+    var a = areaOf(id);
+    if (useAreas && a >= 0 && a !== activeArea) setArea(a);
+  }
+  if (useAreas) {
+    body.classList.add("has-areas");
+    tree.forEach(function (area, i) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = area.label;
+      btn.addEventListener("click", function () {
+        setArea(i);
+        tree[i].cats[0].units[0].scrollIntoView({ behavior: "instant", block: "start" });
+      });
+      areaTabsEl.appendChild(btn);
+    });
+  }
 
   var rail = document.querySelector(".rail");
   sequence.forEach(function (u) {
@@ -754,6 +824,7 @@ window.drawCharts = function () {
       showSlide(indexOfId(keep), initial);
     } else {
       sequence.forEach(function (u) { u.classList.remove("current"); });
+      if (next === "full") ensureArea(keep);
       var target = document.getElementById(keep);
       if (target && !(initial && keep === sequence[0].id)) {
         requestAnimationFrame(function () { target.scrollIntoView({ behavior: "instant", block: next === "full" ? "start" : "center" }); });
@@ -782,11 +853,18 @@ window.drawCharts = function () {
   });
   window.addEventListener("hashchange", function () {
     var id = location.hash.replace(/^#/, "");
-    if (!document.getElementById(id)) return;
+    var target = document.getElementById(id);
+    if (!target) return;
     currentId = id;
     if (mode() === "slides") showSlide(indexOfId(id), true);
     else if (mode() === "xr") markRail();
-    else markSidebar();
+    else {
+      if (useAreas && areaOf(id) !== activeArea) {
+        ensureArea(id);
+        target.scrollIntoView({ behavior: "instant", block: "start" });
+      }
+      markSidebar();
+    }
   });
 
   var xrObserver = null;
@@ -812,6 +890,7 @@ window.drawCharts = function () {
       spyTick = false;
       var best = null;
       units.forEach(function (u) {
+        if (u.offsetParent === null) return;
         if (u.getBoundingClientRect().top <= 130) best = u;
       });
       if (best && best.id !== currentId) {
@@ -829,6 +908,7 @@ window.drawCharts = function () {
   if (initialHash && document.getElementById(initialHash)) currentId = initialHash;
 
   Promise.allSettled(pending).then(function () {
+    if (useAreas) setArea(Math.max(0, areaOf(currentId)));
     setMode(initialMode, true);
     document.documentElement.classList.remove("prerender");
   });

@@ -6,13 +6,16 @@ working implementation is [template.html](template.html).
 
 ## What the engine builds in this mode
 
-- **Sidebar** (sticky, left): the navigation tree, up to three levels —
-  area labels, category labels, menu-item links. Scroll-spy highlights the
-  unit in view. Collapses above the content below 960px.
-- **Bands**: an area band (uppercase, accent rule) and a category band
-  injected where each group starts, so the document reads with its
-  structure visible.
-- Gateways are hidden — the sidebar is this mode's navigation.
+- **Area tabs** (sticky, top — only when areas exist): one squared tab
+  per area; the active tab filters the document and the sidebar to that
+  area, and clicking a tab jumps to its first unit. Deep links into
+  another area activate its tab.
+- **Sidebar** (sticky, left): category labels and menu-item links for the
+  active area. Scroll-spy highlights the unit in view. Collapses above
+  the content below 960px.
+- **Bands**: a category band injected where each group starts, so the
+  document reads with its structure visible.
+- Gateways are hidden — tabs and the sidebar are this mode's navigation.
 
 ## Authoring rules
 
@@ -35,7 +38,9 @@ working implementation is [template.html](template.html).
 
 ## Open-check
 
+- Area tabs (when areas exist) switch and filter the document and
+  sidebar; a hash link into another area activates its tab.
 - Every sidebar link jumps to its unit and the scroll-spy follows.
-- Area/category bands appear at each group boundary.
+- Category bands appear at each group boundary.
 - Diagrams, charts, diffs, and sketches render.
 - Zero console errors.
