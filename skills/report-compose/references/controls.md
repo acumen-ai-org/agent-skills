@@ -19,6 +19,12 @@ facts in a caption or in readable source text.
 | Status chips | `.chip[.ok/.warn/.error]` | inline status labels in text or tables |
 | Tables | `.data-table` wrapping `<table>` | numeric cells get `class="num"` |
 
+## Satellite-gated (legal only with declared satellites)
+
+| Control | Markup | Notes |
+| --- | --- | --- |
+| Page link | `<a class="page-link" href="<out-stem>-pages/<id>.html">Label <span class="hint">what's there</span></a>` | card linking to a declared satellite page ([spec-format.md](spec-format.md)); the build rejects hrefs that don't match a declared satellite, and the validator rejects them without a matching `<link rel="satellite">` |
+
 ## Engine-drawn (inline SVG, no library)
 
 | Control | Markup | Notes |

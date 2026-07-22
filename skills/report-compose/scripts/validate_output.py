@@ -7,7 +7,9 @@ Checks:
   - parses as HTML with <html>, <head>, <body> and a non-empty <title>
   - every src/href/srcset/CSS-url() target is a pinned jsdelivr URL, a Google
     Fonts URL, a data: URI, a #fragment, or a mailto: link — nothing relative,
-    no other hosts
+    no other hosts. Sole exception: <link rel="satellite" href="<dir>/<id>.html">
+    declarations (written by build_report.py for declared satellite pages) and
+    <a> hrefs exactly matching a declared satellite
   - every jsdelivr <script>/<link> carries integrity + crossorigin and pins a
     version with @<semver> in the URL (Google Fonts is the sole SRI exemption)
   - provenance: <meta name="generator" content="report-compose"> and an
@@ -40,6 +42,7 @@ def is_allowed(url):
         return True
     return any(url == origin or url.startswith(origin + "/") for origin in ALLOWED_ORIGINS)
 GENERATOR_RE = re.compile(r"^report-compose$")
+SATELLITE_HREF_RE = re.compile(r"^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+\.html$")
 ISO_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 JSDELIVR_VERSION_RE = re.compile(r"@\d+\.\d+\.\d+(?:[./-]|$)")
 CSS_URL_RE = re.compile(r"url\(\s*['\"]?([^'\")]+)['\"]?\s*\)")
@@ -101,9 +104,21 @@ def validate(path):
     if not "".join(parser.title_parts).strip():
         violations.append("missing or empty <title>")
 
+    satellite_hrefs = set()
     for tag, key, url, attrs in parser.refs:
+        if tag == "link" and attrs.get("rel") == "satellite":
+            if SATELLITE_HREF_RE.match(url):
+                satellite_hrefs.add(url)
+            else:
+                violations.append(f'<link rel="satellite" href="{url}"> must be a relative <dir>/<id>.html path')
+
+    for tag, key, url, attrs in parser.refs:
+        if tag == "link" and attrs.get("rel") == "satellite":
+            continue
+        if tag == "a" and url in satellite_hrefs:
+            continue
         if not is_allowed(url):
-            violations.append(f"<{tag} {key}=\"{url}\"> is not an allowed reference (pinned jsdelivr, Google Fonts, data:, #fragment, mailto:)")
+            violations.append(f"<{tag} {key}=\"{url}\"> is not an allowed reference (pinned jsdelivr, Google Fonts, data:, #fragment, mailto:, or a declared satellite)")
             continue
         if url.startswith("https://cdn.jsdelivr.net/"):
             if not JSDELIVR_VERSION_RE.search(url):

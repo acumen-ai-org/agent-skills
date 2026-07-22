@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="report-compose">
+<link rel="satellite" href="release-2026.06.20.1-report-pages/quality-findings.html">
+<link rel="satellite" href="release-2026.06.20.1-report-pages/supply-chain-findings.html">
+<link rel="satellite" href="release-2026.06.20.1-report-pages/security-surface.html">
 <title>Captario SUM — Release 2026.06.20.1</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -294,6 +297,23 @@ body.mode-xr .gateway-list li.here a { background: var(--accent-veil); }
 .kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1.4rem; margin: var(--space) 0; max-width: 78ch; }
 .kv dt { color: var(--muted); font-size: 0.88rem; }
 .kv dd { margin: 0; font-family: var(--font-mono); font-size: 0.9rem; }
+a.page-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 48px;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  max-width: 78ch;
+  margin: var(--space) 0;
+}
+a.page-link::after { content: "→"; color: var(--accent); }
+a.page-link .hint { color: var(--muted); font-size: 0.8rem; }
 .chip {
   display: inline-block;
   font: 500 0.72rem var(--font-body);
@@ -395,7 +415,7 @@ body.mode-full footer.report {
   <main id="content">
 <section class="unit cover" id="cover">
   <h1>Captario SUM — Release 2026.06.20.1</h1>
-  <p>Release review generated from the 2026.06.20.1 report data: 76 commits cut from <code>qa-staging</code> at <code>1d60aafb6</code> on 2026-06-23, analyzed by 13 report fragments across 8 categories.</p>
+  <p>Release review generated from the 2026.06.20.1 report data: 76 commits cut from <code>qa-staging</code> at <code>1d60aafb6</code> on 2026-06-23, analyzed by 13 report fragments across 8 categories. Detail-heavy findings live on satellite pages linked from their sections.</p>
   <p class="provenance">2026-07-22 · source: release report 2026.06.20.1 data fragments (test/target_example.zip)</p>
 </section>
 <section class="unit" id="release-facts" data-area="Release" data-category="Overview" data-menu="Release facts">
@@ -445,6 +465,7 @@ body.mode-full footer.report {
     <div class="viz-slot" id="viz-vuln"></div>
     <figcaption>114 unique vulnerable dependency findings across 37 of 37 scanned packages: 2 critical, 37 high, 65 medium, 10 low.</figcaption>
   </figure>
+  <a class="page-link" href="release-2026.06.20.1-report-pages/supply-chain-findings.html">All 114 findings per library and CVE <span class="hint">satellite page</span></a>
 </section>
 <section class="unit" id="author-activity" data-area="Analysis" data-category="Evolution" data-menu="Author activity">
   <h2>Author activity</h2>
@@ -482,6 +503,7 @@ body.mode-full footer.report {
 <section class="unit" id="quality-truecourse" data-area="Analysis" data-category="Quality" data-menu="TrueCourse code health">
   <h2>TrueCourse code health</h2>
   <div class="callout error"><strong>28,182 findings.</strong> 28,032 code-health findings and 150 security findings — the deepest backlog surfaced by the release analysis.</div>
+  <a class="page-link" href="release-2026.06.20.1-report-pages/quality-findings.html">Every code-health and security finding <span class="hint">satellite page</span></a>
 </section>
 <section class="unit" id="schema-surface" data-area="Analysis" data-category="Schema &amp; security" data-menu="Schema surface">
   <h2>Schema surface</h2>
@@ -499,6 +521,7 @@ body.mode-full footer.report {
     <dt>Secrets found</dt><dd>0</dd>
     <dt>Semgrep security</dt><dd>10 error · 3 warning</dd>
   </dl>
+  <a class="page-link" href="release-2026.06.20.1-report-pages/security-surface.html">Ingress, egress, and finding detail <span class="hint">satellite page</span></a>
 </section>
 <section class="unit" id="producer-status" data-area="Report" data-category="Build" data-menu="Producer status">
   <h2>Producer status</h2>
@@ -529,14 +552,14 @@ window.drawCharts = function () {
     marginLeft: 70,
     style: { background: "transparent", fontSize: "12px" },
     x: { label: "Findings", grid: true },
-    y: { label: null },
+    y: { label: null, domain: ["Critical", "High", "Medium", "Low"] },
     marks: [
       Plot.barX([
         { sev: "Critical", n: 2 },
         { sev: "High", n: 37 },
         { sev: "Medium", n: 65 },
         { sev: "Low", n: 10 }
-      ], { x: "n", y: "sev", fill: styles.getPropertyValue("--accent").trim(), sort: null }),
+      ], { x: "n", y: "sev", fill: styles.getPropertyValue("--accent").trim() }),
       Plot.ruleX([0])
     ]
   });

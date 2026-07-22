@@ -7,7 +7,9 @@ Spec directory layout:
   report.json      required: {"title", "date" (YYYY-MM-DD), "source",
                    "default_mode" (full|slides|xr, default full),
                    "tokens" (optional {"--name": "value"}),
-                   "fonts_href" (optional Google Fonts CSS2 URL)}
+                   "fonts_href" (optional Google Fonts CSS2 URL),
+                   "satellites" (optional [{"id", "title"}, ...] — the
+                   sanctioned single-file exception, see spec-format.md)}
   units/*.html     unit fragments, assembled in filename sort order; each
                    file is exactly one <section class="unit" ...>...</section>;
                    the first must be the cover (class "unit cover", no data
@@ -23,6 +25,14 @@ the CDN library tags whose controls appear in the content:
   pre.mermaid -> mermaid | .viz-slot or charts.js -> d3 + plot
   code.language-* -> highlight.js | figure.diff -> jsdiff
   figure.excalidraw -> excalidraw-utils
+
+When report.json declares "satellites", the build additionally writes one
+placeholder page per entry into <out-stem>-pages/ (same head contract and
+tokens, an empty <main data-page-slot>), injects one
+<link rel="satellite"> per page into the report head, and requires every
+a.page-link href in the content to reference a declared satellite. This
+deliberately breaks the one-file rule — an external data-driven renderer
+takes the placeholders over after the build.
 
 Density warnings (never fatal): a unit with more than 8 <li> or more than
 9 <tr> will overflow a slide/panel — split it per structure.md.
@@ -104,6 +114,18 @@ def main():
         problems.append(f'report.json: "default_mode" must be one of {"|".join(MODES)}')
     if fonts_href and not fonts_href.startswith("https://fonts.googleapis.com/css2"):
         problems.append('report.json: "fonts_href" must be a Google Fonts CSS2 URL')
+    satellites = manifest.get("satellites", []) or []
+    seen_sat = set()
+    for sat in satellites:
+        sid = sat.get("id", "") if isinstance(sat, dict) else ""
+        if not re.fullmatch(r"[a-z0-9-]+", sid):
+            problems.append(f'report.json satellites: id "{sid}" must match [a-z0-9-]+')
+        elif sid in seen_sat:
+            problems.append(f'report.json satellites: duplicate id "{sid}"')
+        else:
+            seen_sat.add(sid)
+        if not (isinstance(sat, dict) and sat.get("title")):
+            problems.append(f'report.json satellites: entry "{sid}" needs a "title"')
 
     unit_files = sorted((spec_dir / "units").glob("*.html")) if (spec_dir / "units").is_dir() else []
     if not unit_files:
@@ -170,6 +192,26 @@ def main():
     if "viz-slot" in body_all and not charts:
         print("warning: .viz-slot present but no charts.js — chart slots will stay empty", file=sys.stderr)
 
+    pages_dir_name = out_path.stem + "-pages"
+    sat_hrefs = {f"{pages_dir_name}/{sat['id']}.html": sat["id"] for sat in satellites}
+    linked = set()
+    for tag in re.findall(r"<a\b[^>]*>", body_all):
+        if "page-link" not in tag:
+            continue
+        href_match = re.search(r'href="([^"]*)"', tag)
+        href = href_match.group(1) if href_match else ""
+        if not satellites:
+            problems.append(f'page-link "{href}": no "satellites" declared in report.json — page links are only legal with declared satellites')
+        elif href not in sat_hrefs:
+            problems.append(f'page-link "{href}": must reference a declared satellite ({" | ".join(sorted(sat_hrefs)) or "none"})')
+        else:
+            linked.add(sat_hrefs[href])
+    if problems:
+        return fail_spec(problems)
+    for sat in satellites:
+        if sat["id"] not in linked:
+            print(f'warning: satellite "{sat["id"]}" declared but no page-link references it', file=sys.stderr)
+
     template = template_path.read_text()
 
     def anchored(pattern, replacement, count=1, flags=0):
@@ -217,9 +259,58 @@ def main():
               + "</footer>")
     anchored(r'<footer class="report">.*?</footer>', lambda m: footer, flags=re.S)
 
+    if satellites:
+        sat_links = "\n".join(f'<link rel="satellite" href="{pages_dir_name}/{sat["id"]}.html">' for sat in satellites)
+        anchored(r'<meta name="generator" content="report-compose">', lambda m: m.group(0) + "\n" + sat_links)
+
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(template)
-    print(f"{out_path}: {out_path.stat().st_size} bytes, {len(units)} unit(s), libraries: {lib_list}")
+
+    if satellites:
+        fonts_link = re.search(r'<link href="https://fonts\.googleapis\.com/css2[^"]*" rel="stylesheet">', template).group(0)
+        pages_dir = out_path.parent / pages_dir_name
+        pages_dir.mkdir(parents=True, exist_ok=True)
+        for sat in satellites:
+            page = f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="report-compose">
+<title>{sat["title"]} — {title}</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+{fonts_link}
+<style>
+{root_block}
+* {{ box-sizing: border-box; }}
+body {{ margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }}
+header.satellite {{ background: var(--surface); border-bottom: 1px solid var(--border); padding: 1.3rem clamp(1rem, 3vw, 4rem); display: flex; align-items: baseline; gap: 1.2rem; flex-wrap: wrap; }}
+header.satellite h1 {{ font-family: var(--font-serif); font-size: 1.6rem; margin: 0; }}
+header.satellite a {{ color: var(--accent); font-size: 0.9rem; }}
+main {{ padding: 1.5rem clamp(1rem, 3vw, 4rem); }}
+.placeholder-note {{ border: 1px dashed var(--border); border-radius: 8px; padding: 1rem; color: var(--muted); max-width: 78ch; }}
+footer.satellite {{ border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem; padding: 1rem clamp(1rem, 3vw, 4rem); }}
+</style>
+</head>
+<body>
+<header class="satellite"><h1>{sat["title"]}</h1><a href="../{out_path.name}">← {title}</a></header>
+<main data-page-slot="{sat["id"]}">
+<p class="placeholder-note">Placeholder generated by report-compose on {date} — awaiting its data renderer.</p>
+</main>
+<footer class="satellite">Satellite page of {out_path.name} · {date} · {source}</footer>
+</body>
+</html>
+"""
+            target = pages_dir / f"{sat['id']}.html"
+            if target.is_file() and 'class="placeholder-note"' not in target.read_text():
+                print(f"satellite {sat['id']}.html: kept — already filled by its renderer", file=sys.stderr)
+            else:
+                target.write_text(page)
+
+    sat_note = f", satellites: {len(satellites)} page(s) in {pages_dir_name}/" if satellites else ""
+    print(f"{out_path}: {out_path.stat().st_size} bytes, {len(units)} unit(s), libraries: {lib_list}{sat_note}")
     return 0
 
 

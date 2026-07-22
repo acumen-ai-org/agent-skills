@@ -50,6 +50,7 @@ Reference detail — read when running that step, not before:
 | `$OUT`       | —                    | Output `.html` path. Required.                                          |
 | `$TITLE`     | derived from content | Document title.                                                         |
 | `$KEEP_SPEC` | `false`              | Keep `<out-stem>.spec/` after a green build (for re-assembly).          |
+| `$SATELLITES` | unset → single file | Explicit opt-in list of external pages (`id` + `title`), written into `report.json` as `satellites`. Breaks the one-file rule on purpose — see [spec-format.md](references/spec-format.md). Only use when the caller asked for external/data-driven pages. |
 
 Requirements: `python3` (standard library only). Opening the result needs
 a browser; the pinned CDN libraries need network, the content does not.
@@ -60,6 +61,10 @@ a browser; the pinned CDN libraries need network, the content does not.
   `url()` is a pinned jsdelivr URL with `integrity` + `crossorigin`, a
   Google Fonts URL (the sole SRI exemption), a `data:` URI, a
   `#fragment`, or `mailto:`. Images and logos are embedded as data URIs.
+  With `$SATELLITES` set — and only then — the build also emits
+  placeholder pages under `<out-stem>-pages/` for an external data-driven
+  renderer to fill, and `page-link` cards to declared satellites become
+  legal. This is the one sanctioned break of the one-file rule.
 - **Structure**: units with `data-area`/`data-category`/`data-menu`
   attributes (any subset, used consistently); the engine derives the
   sidebar, gateway slides, and panel sequence. See

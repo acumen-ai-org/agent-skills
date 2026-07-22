@@ -356,6 +356,18 @@ network on first open and are pinned with SRI hashes in `index.html`; the
 browser caches them afterward. Vendoring them into `assets/` is a future
 option, not part of v1.
 
+## Filling report-compose satellite pages
+
+`scripts/render_fragment_page.py <fragment.json> <satellite.html>` renders
+one fragment as static HTML into a placeholder page emitted by
+report-compose (`report.json` declaring `satellites` → empty
+`<main data-page-slot>` pages next to the briefing). The fill keeps the
+placeholder's head contract and design tokens, renders every section type
+statically (full table row sets with click-to-sort and substring filter;
+d3-graph/sankey/treemap degrade to a counts card), and is idempotent —
+re-running replaces the previous fill. This is how a report-compose
+briefing links out to full fragment detail without carrying the payload.
+
 ## Authoring a producer
 
 The first-party producers are the internal bundles in

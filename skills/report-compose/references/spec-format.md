@@ -34,6 +34,16 @@ the file and the fix.
 - `tokens` — optional overrides applied to the template's `:root{}` block;
   every key must already exist there (the build rejects unknown names).
 - `fonts_href` — optional replacement Google Fonts CSS2 URL.
+- `satellites` — optional `[{"id", "title"}, ...]`; ids kebab-case, unique.
+  **The sanctioned exception to the one-file rule**: the build writes one
+  placeholder page per entry into `<out-stem>-pages/<id>.html` (same head
+  contract and tokens, an empty `<main data-page-slot="<id>">`), injects a
+  `<link rel="satellite">` per page into the report head, and legalizes
+  `page-link` cards ([controls.md](controls.md)) whose hrefs must match a
+  declared satellite exactly. An external data-driven renderer fills the
+  placeholders after the build — the report is no longer a single file, and
+  that is the point of declaring satellites. Do not declare any unless the
+  caller explicitly asked for external pages.
 
 ## units/
 
