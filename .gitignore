@@ -17,6 +17,9 @@ venv/
 .env.*
 !.env.example
 
+# Local test inputs (large artifacts copied in manually, never committed)
+/test/
+
 # OS noise
 .DS_Store
 Thumbs.db
