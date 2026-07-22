@@ -36,15 +36,3 @@ to the CSS2 endpoint; system font stacks are the no-network fallback.
   `curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A`
 - Every library must degrade gracefully — see the per-control fallback
   column in [controls.md](controls.md).
-
-## Rejected libraries
-
-Decided against, so it is not relitigated per output:
-
-- **Chart.js** — replaced by Observable Plot: Plot's defaults are the
-  minimalistic, clear statistical graphics this skill wants, with a
-  smaller authored-code surface per chart.
-- **Alpine / htmx / any framework** — the engine is a few hundred lines of
-  vanilla JS; a framework adds a dependency for no capability.
-- **Tailwind CDN** — runtime CSS generation in a static artifact; all
-  styling lives in the file's single `<style>` block.
