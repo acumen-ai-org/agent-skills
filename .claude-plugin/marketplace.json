@@ -8,12 +8,18 @@
   "description": "Acumen AI's catalog of reusable Claude Code agent Skills.",
   "plugins": [
     {
-      "name": "agent-skills",
+      "name": "acumen",
       "source": "./",
       "description": "Reusable agent Skills as portable workflows.",
       "license": "AGPL-3.0-only OR LicenseRef-Commercial",
       "category": "productivity",
-      "keywords": ["skills", "content-to-image", "infographic", "workflow"]
+      "keywords": [
+        "skills",
+        "workflow",
+        "ways-of-working",
+        "sys",
+        "content-to-image"
+      ]
     }
   ]
 }

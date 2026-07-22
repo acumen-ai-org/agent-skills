@@ -1,0 +1,19 @@
+{
+  "canon": "/home/celin/git/oakai",
+  "threshold": 300,
+  "cooldown": 10,
+  "watch": [
+    "src/**",
+    "client/src/**",
+    "worker/**",
+    "queue/**",
+    "supervisor/**"
+  ],
+  "exclude": [
+    "**/*.md",
+    "**/*-index.html",
+    ".ai/**",
+    "**/package-lock.json",
+    "**/node_modules/**"
+  ]
+}
