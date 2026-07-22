@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="report-presentation">
+<title>Demo report — all modes</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.17/dist/plot.umd.min.js" integrity="sha384-JUpn2GgRr0gxU0xOBd8D8P634jhRCwobtG8G2MMEkX1RnGJ7/FJNnuukpfT+H2w1" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js" integrity="sha384-rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/highlight.min.js" integrity="sha384-GdEWAbCjn+ghjX0gLx7/N1hyTVmPAjdC2OvoAA0RyNcAOhqwtT8qnbCxWle2+uJX" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/diff@7.0.0/dist/diff.min.js" integrity="sha384-UeyWE2TKK+s95khAzg8xeTD88VbztEqt1mbxzkzwAPM32TPJSj8Lyg7E7tVXAyRL" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@excalidraw/utils@0.1.2/dist/excalidraw-utils.min.js" integrity="sha384-PKzoxe86QGVlqsE3fJ2YdWcVokf/EDKiaR0xFa8W3pzMltvDYh9VQD2KfEcNnKId" crossorigin="anonymous"></script>
+<script>document.documentElement.classList.add("prerender");</script>
+<style>
+:root {
+  --bg: #f1f1ee;
+  --surface: #fbfbf9;
+  --surface-2: #e3e5df;
+  --border: #e0e2da;
+  --text: #22261f;
+  --muted: #757d6e;
+  --accent: #3f5233;
+  --accent-deep: #2c3a24;
+  --accent-veil: #e7ece0;
+  --ok: #3f5233;
+  --warn: #9a6b1f;
+  --error: #8c4a32;
+  --error-veil: #f0e4dd;
+  --figure-bg: #fbfbf9;
+  --figure-text: #22261f;
+  --font-serif: "Newsreader", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --space: 1rem;
+}
+body.mode-xr {
+  --bg: #07080a;
+  --surface: rgba(24, 27, 24, 0.72);
+  --surface-2: rgba(38, 42, 38, 0.72);
+  --border: rgba(255, 255, 255, 0.14);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.6);
+  --accent: #9dbe86;
+  --accent-deep: #b9d4a6;
+  --accent-veil: rgba(157, 190, 134, 0.16);
+  --ok: #9dbe86;
+  --warn: #e0b56b;
+  --error: #d99a82;
+  --error-veil: rgba(217, 154, 130, 0.16);
+}
+* { box-sizing: border-box; }
+html.prerender body > * { visibility: hidden; }
+html { scroll-behavior: smooth; }
+html.mode-xr { scroll-snap-type: y mandatory; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+}
+body.mode-xr {
+  background: var(--bg) radial-gradient(ellipse 90% 60% at 50% 20%, rgba(96, 118, 96, 0.14), transparent);
+  background-attachment: fixed;
+  font-size: 18px;
+}
+body.mode-slides { overflow: hidden; }
+h1, h2, h3 { font-family: var(--font-serif); font-weight: 600; line-height: 1.25; }
+a { color: var(--accent); }
+p, ul, ol { max-width: 78ch; }
+code { font-family: var(--font-mono); font-size: 0.9em; }
+.num, td.num, th.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.provenance { color: var(--muted); font-size: 0.85rem; }
+
+.mode-switch {
+  position: fixed;
+  top: 0.9rem;
+  right: 1rem;
+  z-index: 10;
+  display: flex;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
+}
+.mode-switch button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: 500 0.8rem var(--font-body);
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 30px;
+}
+.mode-switch button.active { background: var(--accent); color: #fbfbf9; }
+body.mode-xr .mode-switch button.active { color: #10140e; }
+
+.layout { display: block; }
+body.mode-full .layout {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: calc(var(--space) * 2);
+  padding: calc(var(--space) * 2) clamp(1rem, 3vw, 4rem);
+}
+body.no-nav.mode-full .layout { grid-template-columns: minmax(0, 1fr); }
+body.no-nav.mode-full .sidebar { display: none; }
+.sidebar { display: none; }
+body.mode-full .sidebar {
+  display: block;
+  position: sticky;
+  top: var(--space);
+  align-self: start;
+  font-size: 0.88rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+}
+.sidebar ul { list-style: none; margin: 0; padding: 0; max-width: none; }
+.sidebar li { margin: 0; }
+.sidebar .lvl-area { font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; font-size: 0.72rem; color: var(--muted); padding: 0.9rem 0.6rem 0.25rem; }
+.sidebar .lvl-category { font-weight: 600; padding: 0.45rem 0.6rem 0.1rem; color: var(--text); }
+.sidebar a {
+  display: block;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 0.28rem 0.6rem;
+  border-left: 2px solid var(--border);
+  border-radius: 0 4px 4px 0;
+}
+.sidebar a.active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-veil); font-weight: 600; }
+
+main { min-width: 0; }
+.unit { margin: 0; }
+body.mode-full .unit { margin-bottom: calc(var(--space) * 3); }
+body.mode-full .unit.cover { border-bottom: 1px solid var(--border); padding-bottom: var(--space); }
+body.mode-full .unit.cover h1 { font-size: 2.2rem; margin: 0 0 0.3rem; }
+body.mode-full .unit h2 { font-size: 1.45rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; scroll-margin-top: 4rem; }
+.band { display: none; }
+body.mode-full .band { display: block; margin: calc(var(--space) * 3) 0 var(--space); }
+body.mode-full .band.area-band {
+  font: 600 0.78rem var(--font-body);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  border-top: 2px solid var(--accent);
+  padding-top: 0.5rem;
+}
+body.mode-full .band.category-band { font: 600 1.05rem var(--font-serif); color: var(--muted); }
+body.mode-full .gateway { display: none; }
+body.mode-full .deck-only { display: none; }
+body.mode-slides .full-only, body.mode-xr .full-only { display: none; }
+
+body.mode-slides main .unit { display: none; }
+body.mode-slides main .unit.current {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 6vh 8vw;
+}
+body.mode-slides .unit-body { max-width: 1000px; }
+body.mode-slides .unit h1 { font-size: 2.8rem; margin: 0 0 0.4rem; }
+body.mode-slides .unit h2 { font-size: 2rem; margin: 0 0 1rem; }
+@media (prefers-reduced-motion: no-preference) {
+  body.mode-slides main .unit.current { animation: slide-in 200ms ease-out; }
+}
+@keyframes slide-in {
+  from { opacity: 0; transform: translateX(1.2rem); }
+  to { opacity: 1; transform: none; }
+}
+.deck-progress, .deck-counter { display: none; }
+body.mode-slides .deck-progress {
+  display: block;
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  width: 0;
+  background: var(--accent);
+  transition: width 180ms ease;
+  z-index: 9;
+}
+body.mode-slides .deck-counter {
+  display: block;
+  position: fixed;
+  bottom: 1rem; right: 1.2rem;
+  color: var(--muted);
+  font: 0.75rem var(--font-mono);
+  z-index: 9;
+}
+
+body.mode-xr main .unit {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  padding: 8vh 5vw;
+}
+body.mode-xr .unit-body {
+  background: var(--surface);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  box-shadow: 0 0 60px rgba(140, 170, 140, 0.07), 0 24px 60px rgba(0, 0, 0, 0.5);
+  padding: 44px;
+  max-width: 820px;
+  width: 100%;
+}
+body.mode-xr .unit h1 { font-size: 2.3rem; margin: 0 0 0.4rem; }
+body.mode-xr .unit h2 { font-size: 1.7rem; margin: 0 0 0.8rem; }
+@media (prefers-reduced-motion: no-preference) {
+  body.mode-xr .unit-body { opacity: 0; transform: translateY(22px); transition: opacity 450ms ease, transform 450ms ease; }
+  body.mode-xr .unit-body.settled { opacity: 1; transform: none; }
+}
+.rail { display: none; }
+body.mode-xr .rail {
+  position: fixed;
+  right: 1.1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  z-index: 9;
+}
+.rail a { width: 10px; height: 10px; border-radius: 50%; background: var(--border); display: block; }
+.rail a.gw { width: 12px; height: 12px; border: 1px solid var(--muted); background: transparent; }
+.rail a.active { background: var(--accent); border-color: var(--accent); }
+.rail a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.gateway .crumb { font: 600 0.72rem var(--font-body); text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin: 0 0 0.4rem; }
+.gateway-list { list-style: none; padding: 0; margin: 1rem 0 0; display: grid; gap: 0.6rem; max-width: none; }
+.gateway-list a {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 48px;
+  padding: 0.6rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+body.mode-xr .gateway-list a { background: var(--surface-2); }
+.gateway-list .marker { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); min-width: 3.5rem; }
+.gateway-list li.done .marker { color: var(--ok); }
+.gateway-list li.here a { border-color: var(--accent); background: var(--accent-veil); font-weight: 600; }
+body.mode-xr .gateway-list li.here a { background: var(--accent-veil); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--space); margin: var(--space) 0; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: var(--space); }
+.tile .num { font-size: 1.7rem; font-weight: 600; }
+.tile .label { color: var(--muted); font-size: 0.82rem; }
+.tile.ok .num { color: var(--ok); }
+.tile.warn .num { color: var(--warn); }
+.tile.error .num { color: var(--error); }
+.callout { border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 6px 6px 0; padding: 0.7rem var(--space); margin: var(--space) 0; max-width: 78ch; }
+.callout.warn { border-left-color: var(--warn); }
+.callout.error { border-left-color: var(--error); }
+.callout.ok { border-left-color: var(--ok); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1.4rem; margin: var(--space) 0; max-width: 78ch; }
+.kv dt { color: var(--muted); font-size: 0.88rem; }
+.kv dd { margin: 0; font-family: var(--font-mono); font-size: 0.9rem; }
+.chip {
+  display: inline-block;
+  font: 500 0.72rem var(--font-body);
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  vertical-align: middle;
+}
+.chip.ok { color: var(--ok); border-color: var(--ok); background: var(--accent-veil); }
+.chip.warn { color: var(--warn); border-color: var(--warn); }
+.chip.error { color: var(--error); border-color: var(--error); background: var(--error-veil); }
+.data-table { overflow-x: auto; margin: var(--space) 0; }
+.data-table table { border-collapse: collapse; width: 100%; background: var(--figure-bg); color: var(--figure-text); font-size: 0.9rem; }
+.data-table th, .data-table td { border: 1px solid var(--border); padding: 0.45rem 0.7rem; text-align: left; }
+.data-table thead th { background: var(--surface-2); }
+body.mode-xr .data-table th, body.mode-xr .data-table td { border-color: #d5d7cf; }
+body.mode-xr .data-table thead th { background: #e3e5df; }
+.spark svg { vertical-align: middle; }
+.spark { color: var(--accent); }
+
+figure { margin: var(--space) 0; }
+figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 0.5rem; max-width: 78ch; }
+.figure-card, .viz-slot, pre.mermaid, .diff-view, .excalidraw-slot {
+  background: var(--figure-bg);
+  color: var(--figure-text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--space);
+  overflow-x: auto;
+}
+body.mode-xr .viz-slot, body.mode-xr pre.mermaid, body.mode-xr .diff-view, body.mode-xr .excalidraw-slot { border-color: #d5d7cf; }
+pre.mermaid { text-align: center; font-family: var(--font-mono); font-size: 0.82rem; margin: 0; }
+.excalidraw-slot { text-align: center; }
+.excalidraw-slot svg { max-width: 100%; height: auto; }
+pre:not(.mermaid) {
+  background: var(--figure-bg);
+  color: var(--figure-text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: var(--space);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+.hljs-keyword { color: #3f5233; font-weight: 600; }
+.hljs-string { color: #5c7048; }
+.hljs-comment { color: #757d6e; }
+.hljs-number, .hljs-literal { color: #9a6b1f; }
+.hljs-title { color: #8c4a32; }
+.diff-view { display: grid; grid-template-columns: 1fr 1fr; font-family: var(--font-mono); font-size: 0.82rem; line-height: 1.5; padding: 0; }
+.diff-view .cell { padding: 0.1rem 0.8rem; white-space: pre-wrap; min-width: 0; overflow-wrap: break-word; }
+.diff-view .cell:nth-child(odd) { border-right: 1px solid var(--border); }
+.diff-view .head { background: #e3e5df; color: #757d6e; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; padding: 0.35rem 0.8rem; }
+.diff-view .add { background: #e7ece0; }
+.diff-view .del { background: #f0e4dd; }
+.diff-view .fill { background: repeating-linear-gradient(45deg, transparent, transparent 6px, #e3e5df 6px, #e3e5df 7px); }
+.diff-view .cell::before { display: inline-block; width: 1.1em; color: #757d6e; content: " "; }
+.diff-view .add::before { content: "+"; color: #3f5233; }
+.diff-view .del::before { content: "\2212"; color: #8c4a32; }
+.diff-view .head::before, .diff-view .fill::before { content: none; }
+
+footer.report { display: none; }
+body.mode-full footer.report {
+  display: block;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: var(--space) clamp(1rem, 3vw, 4rem) calc(var(--space) * 2);
+}
+@media (max-width: 960px) {
+  body.mode-full .layout { grid-template-columns: 1fr; }
+  body.mode-full .sidebar { position: static; max-height: none; }
+}
+</style>
+</head>
+<body data-default-mode="full">
+<nav class="mode-switch" aria-label="Mode">
+  <button type="button" data-mode="full">Full</button>
+  <button type="button" data-mode="slides">Slides</button>
+  <button type="button" data-mode="xr">XR</button>
+</nav>
+<div class="deck-progress"></div>
+<div class="deck-counter"></div>
+<nav class="rail" aria-label="Panels"></nav>
+<div class="layout">
+  <nav class="sidebar" aria-label="Contents"></nav>
+  <main id="content">
+    <section class="unit cover" id="cover">
+      <h1>Demo report — all modes</h1>
+      <p>One file, three modes: a scrollable document, a slide deck, and a spatial XR view. Switch with the control in the top-right corner, or open with <code>?mode=slides</code> / <code>?mode=xr</code>.</p>
+      <p class="provenance">2026-07-22 · source: report-presentation template demo content</p>
+    </section>
+    <section class="unit" id="tiles-callouts" data-area="Alpha" data-category="Basics" data-menu="Tiles &amp; callouts">
+      <h2>Tiles &amp; callouts</h2>
+      <div class="tiles">
+        <div class="tile ok"><div class="num">98.4%</div><div class="label">Checks passing</div></div>
+        <div class="tile"><div class="num">1,204</div><div class="label">Items processed</div></div>
+        <div class="tile warn"><div class="num">37</div><div class="label">Open warnings</div></div>
+        <div class="tile error"><div class="num">3</div><div class="label">Blocking errors</div></div>
+      </div>
+      <div class="callout ok"><strong>Decision.</strong> A callout carries one decision, warning, or note, colored by its status token.</div>
+      <dl class="kv">
+        <dt>Release</dt><dd>2026.07.1</dd>
+        <dt>Commits</dt><dd>76</dd>
+        <dt>Status</dt><dd><span class="chip warn">needs review</span></dd>
+      </dl>
+    </section>
+    <section class="unit" id="table-sparklines" data-area="Alpha" data-category="Basics" data-menu="Table &amp; sparklines">
+      <h2>Table &amp; sparklines</h2>
+      <div class="data-table">
+        <table>
+          <thead><tr><th>Check</th><th>Status</th><th>Trend</th><th class="num">Duration (s)</th></tr></thead>
+          <tbody>
+            <tr><td>Schema validation</td><td><span class="chip ok">ok</span></td><td><span class="spark" data-values="14,13,12,12,12.4"></span> 12.4</td><td class="num">12.4</td></tr>
+            <tr><td>Dependency audit</td><td><span class="chip warn">warn</span></td><td><span class="spark" data-values="31,35,40,44,48.1"></span> 48.1</td><td class="num">48.1</td></tr>
+            <tr><td>Integration suite</td><td><span class="chip ok">ok</span></td><td><span class="spark" data-values="330,318,325,301,311"></span> 311</td><td class="num">311.0</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="unit" id="visualization" data-area="Alpha" data-category="Figures" data-menu="Visualization">
+      <h2>Visualization</h2>
+      <figure class="viz">
+        <div class="viz-slot" id="viz-throughput"></div>
+        <figcaption>Weekly throughput rose from 220 to 310 items between week 1 and week 4; errors fell from 9 to 3.</figcaption>
+      </figure>
+    </section>
+    <section class="unit" id="mermaid-code" data-area="Alpha" data-category="Figures" data-menu="Mermaid &amp; code">
+      <h2>Mermaid &amp; code</h2>
+      <figure>
+        <pre class="mermaid">
+flowchart LR
+  input[Content files] --> author[Authoring model]
+  design[DESIGN.md] --> author
+  author --> out[Single HTML file]
+        </pre>
+        <figcaption>Content plus optional design input become one validated HTML file.</figcaption>
+      </figure>
+      <pre><code class="language-python">def summarize(items):
+    total = sum(item.count for item in items)
+    return {"total": total, "kinds": len(items)}</code></pre>
+    </section>
+    <section class="unit" id="diff-view" data-area="Beta" data-category="Changes" data-menu="Diff view">
+      <h2>Diff view</h2>
+      <figure class="diff">
+        <script type="text/x-old">retries: 2
+timeout: 30
+notify: none</script>
+        <script type="text/x-new">retries: 4
+timeout: 30
+notify: email
+backoff: exponential</script>
+        <figcaption>Retries doubled to 4, email notification and exponential backoff added; timeout unchanged.</figcaption>
+      </figure>
+    </section>
+    <section class="unit" id="excalidraw" data-area="Beta" data-category="Changes" data-menu="Excalidraw">
+      <h2>Excalidraw</h2>
+      <figure class="excalidraw">
+        <script type="application/json">{"type":"excalidraw","version":2,"elements":[
+          {"id":"r1","type":"rectangle","x":0,"y":30,"width":170,"height":70,"angle":0,"strokeColor":"#3f5233","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":2,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":11,"version":1,"versionNonce":11,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false},
+          {"id":"t1","type":"text","x":28,"y":52,"width":120,"height":25,"angle":0,"strokeColor":"#22261f","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":12,"version":1,"versionNonce":12,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false,"text":"Content","fontSize":20,"fontFamily":1,"textAlign":"left","verticalAlign":"top","baseline":18},
+          {"id":"a1","type":"arrow","x":180,"y":65,"width":110,"height":0,"angle":0,"strokeColor":"#22261f","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":2,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":13,"version":1,"versionNonce":13,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false,"points":[[0,0],[110,0]],"lastCommittedPoint":null,"startBinding":null,"endBinding":null,"startArrowhead":null,"endArrowhead":"arrow"},
+          {"id":"r2","type":"rectangle","x":300,"y":30,"width":170,"height":70,"angle":0,"strokeColor":"#8c4a32","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":2,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":14,"version":1,"versionNonce":14,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false},
+          {"id":"t2","type":"text","x":322,"y":52,"width":130,"height":25,"angle":0,"strokeColor":"#22261f","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":15,"version":1,"versionNonce":15,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false,"text":"One file","fontSize":20,"fontFamily":1,"textAlign":"left","verticalAlign":"top","baseline":18}
+        ],"appState":{"viewBackgroundColor":"transparent"}}</script>
+        <div class="excalidraw-slot"></div>
+        <figcaption>Hand-drawn sketch: content flows into one file. The scene JSON is embedded and stays editable on excalidraw.com.</figcaption>
+      </figure>
+    </section>
+  </main>
+</div>
+<footer class="report">
+  Generated by report-presentation on 2026-07-22.
+  Pinned dependencies: d3 7.9.0, plot 0.6.17, mermaid 11.4.1, highlight.js 11.10.0, jsdiff 7.0.0, excalidraw-utils 0.1.2 — content remains readable without them.
+</footer>
+<script>
+window.drawCharts = function () {
+  var accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#3f5233";
+  var error = "#8c4a32";
+  var data = [
+    { week: 1, throughput: 220, errors: 9 },
+    { week: 2, throughput: 255, errors: 7 },
+    { week: 3, throughput: 290, errors: 4 },
+    { week: 4, throughput: 310, errors: 3 }
+  ];
+  var chart = Plot.plot({
+    width: 620,
+    height: 260,
+    marginLeft: 50,
+    style: { background: "transparent", fontSize: "12px" },
+    x: { label: "Week", ticks: 4 },
+    y: { label: "Items", grid: true },
+    marks: [
+      Plot.lineY(data, { x: "week", y: "throughput", stroke: accent, strokeWidth: 2 }),
+      Plot.dot(data, { x: "week", y: "throughput", fill: accent }),
+      Plot.lineY(data, { x: "week", y: "errors", stroke: error, strokeWidth: 2 }),
+      Plot.dot(data, { x: "week", y: "errors", fill: error })
+    ]
+  });
+  document.getElementById("viz-throughput").appendChild(chart);
+};
+</script>
+<script>
+(function () {
+  var body = document.body;
+  var main = document.getElementById("content");
+  var units = Array.prototype.slice.call(main.querySelectorAll(".unit"));
+  var useAreas = units.some(function (u) { return u.dataset.area; });
+  var useCategories = units.some(function (u) { return u.dataset.category; });
+  var useMenus = units.some(function (u) { return u.dataset.menu; });
+
+  units.forEach(function (u) {
+    var wrap = document.createElement("div");
+    wrap.className = "unit-body";
+    while (u.firstChild) wrap.appendChild(u.firstChild);
+    u.appendChild(wrap);
+  });
+
+  function slug(text) {
+    return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+
+  var tree = [];
+  units.forEach(function (u) {
+    if (u.classList.contains("cover")) return;
+    var areaLabel = u.dataset.area || "";
+    var catLabel = u.dataset.category || "";
+    var area = tree[tree.length - 1];
+    if (!area || area.label !== areaLabel) {
+      area = { label: areaLabel, cats: [] };
+      tree.push(area);
+    }
+    var cat = area.cats[area.cats.length - 1];
+    if (!cat || cat.label !== catLabel) {
+      cat = { label: catLabel, units: [] };
+      area.cats.push(cat);
+    }
+    cat.units.push(u);
+  });
+
+  function makeGateway(kind, label, crumb, entries, hereIndex) {
+    var section = document.createElement("section");
+    section.className = "unit gateway";
+    section.id = "gw-" + kind + "-" + slug(label);
+    var wrap = document.createElement("div");
+    wrap.className = "unit-body";
+    if (crumb) {
+      var c = document.createElement("p");
+      c.className = "crumb";
+      c.textContent = crumb;
+      wrap.appendChild(c);
+    }
+    var h = document.createElement("h2");
+    h.textContent = label;
+    wrap.appendChild(h);
+    var ol = document.createElement("ol");
+    ol.className = "gateway-list";
+    entries.forEach(function (entry, i) {
+      var li = document.createElement("li");
+      li.className = i < hereIndex ? "done" : (i === hereIndex ? "here" : "next");
+      var a = document.createElement("a");
+      a.href = "#" + entry.target;
+      var marker = document.createElement("span");
+      marker.className = "marker";
+      marker.textContent = i < hereIndex ? "✓" : (i === hereIndex ? "▶" : String(i + 1));
+      a.appendChild(marker);
+      a.appendChild(document.createTextNode(entry.label));
+      li.appendChild(a);
+      ol.appendChild(li);
+    });
+    wrap.appendChild(ol);
+    section.appendChild(wrap);
+    return section;
+  }
+
+  function makeBand(kind, label) {
+    var band = document.createElement("div");
+    band.className = "band " + kind + "-band";
+    band.textContent = label;
+    return band;
+  }
+
+  var areaEntries = tree.map(function (area) {
+    return { label: area.label, target: useAreas ? "gw-area-" + slug(area.label) : area.cats[0].units[0].id };
+  });
+  tree.forEach(function (area, ai) {
+    var catEntries = area.cats.map(function (cat) {
+      return { label: cat.label, target: useCategories ? "gw-category-" + slug(area.label + "-" + cat.label) : cat.units[0].id };
+    });
+    area.cats.forEach(function (cat, ci) {
+      var first = cat.units[0];
+      if (useAreas && ci === 0) {
+        main.insertBefore(makeBand("area", area.label), first);
+        var gwa = makeGateway("area", area.label, "", areaEntries, ai);
+        gwa.id = "gw-area-" + slug(area.label);
+        main.insertBefore(gwa, first);
+      }
+      if (useCategories) {
+        main.insertBefore(makeBand("category", cat.label), first);
+        var gwc = makeGateway("category", cat.label, area.label, catEntries, ci);
+        gwc.id = "gw-category-" + slug(area.label + "-" + cat.label);
+        main.insertBefore(gwc, first);
+      }
+    });
+  });
+
+  var sequence = Array.prototype.slice.call(main.querySelectorAll(".unit"));
+
+  var sidebar = document.querySelector(".sidebar");
+  if (useMenus) {
+    var rootUl = document.createElement("ul");
+    tree.forEach(function (area) {
+      if (useAreas) {
+        var liA = document.createElement("li");
+        liA.className = "lvl-area";
+        liA.textContent = area.label;
+        rootUl.appendChild(liA);
+      }
+      area.cats.forEach(function (cat) {
+        if (useCategories) {
+          var liC = document.createElement("li");
+          liC.className = "lvl-category";
+          liC.textContent = cat.label;
+          rootUl.appendChild(liC);
+        }
+        cat.units.forEach(function (u) {
+          var li = document.createElement("li");
+          var a = document.createElement("a");
+          a.href = "#" + u.id;
+          a.textContent = u.dataset.menu;
+          li.appendChild(a);
+          rootUl.appendChild(li);
+        });
+      });
+    });
+    sidebar.appendChild(rootUl);
+  }
+  if (!useMenus) body.classList.add("no-nav");
+
+  var rail = document.querySelector(".rail");
+  sequence.forEach(function (u) {
+    var a = document.createElement("a");
+    a.href = "#" + u.id;
+    if (u.classList.contains("gateway")) a.className = "gw";
+    a.setAttribute("aria-label", u.id);
+    rail.appendChild(a);
+  });
+  var railDots = Array.prototype.slice.call(rail.children);
+
+  document.querySelectorAll(".spark").forEach(function (el) {
+    var values = (el.dataset.values || "").split(",").map(Number).filter(function (v) { return !isNaN(v); });
+    if (values.length < 2) return;
+    var w = 72, h = 20, pad = 2;
+    var min = Math.min.apply(null, values), max = Math.max.apply(null, values);
+    var range = max - min || 1;
+    var points = values.map(function (v, i) {
+      var x = pad + i * (w - pad * 2) / (values.length - 1);
+      var y = h - pad - (v - min) * (h - pad * 2) / range;
+      return x.toFixed(1) + "," + y.toFixed(1);
+    });
+    var last = points[points.length - 1].split(",");
+    el.innerHTML = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + " " + h + '" role="img"><polyline points="' + points.join(" ") + '" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="' + last[0] + '" cy="' + last[1] + '" r="2" fill="currentColor"/></svg>';
+  });
+
+  if (window.hljs) hljs.highlightAll();
+
+  if (window.Diff) {
+    document.querySelectorAll("figure.diff").forEach(function (fig) {
+      var oldText = (fig.querySelector('script[type="text/x-old"]') || {}).textContent || "";
+      var newText = (fig.querySelector('script[type="text/x-new"]') || {}).textContent || "";
+      var view = document.createElement("div");
+      view.className = "diff-view";
+      function cell(text, cls) {
+        var d = document.createElement("div");
+        d.className = "cell " + cls;
+        if (text !== null) d.textContent = text;
+        view.appendChild(d);
+      }
+      cell("Before", "head");
+      cell("After", "head");
+      var parts = Diff.diffLines(oldText, newText);
+      for (var i = 0; i < parts.length; i++) {
+        var lines = parts[i].value.replace(/\n$/, "").split("\n");
+        if (parts[i].removed) {
+          var addLines = [];
+          if (parts[i + 1] && parts[i + 1].added) {
+            addLines = parts[i + 1].value.replace(/\n$/, "").split("\n");
+            i++;
+          }
+          for (var k = 0; k < Math.max(lines.length, addLines.length); k++) {
+            cell(k < lines.length ? lines[k] : null, k < lines.length ? "del" : "fill");
+            cell(k < addLines.length ? addLines[k] : null, k < addLines.length ? "add" : "fill");
+          }
+        } else if (parts[i].added) {
+          lines.forEach(function (lineText) {
+            cell(null, "fill");
+            cell(lineText, "add");
+          });
+        } else {
+          lines.forEach(function (lineText) {
+            cell(lineText, "ctx");
+            cell(lineText, "ctx");
+          });
+        }
+      }
+      fig.insertBefore(view, fig.querySelector("figcaption"));
+    });
+  }
+
+  var pending = [];
+  if (window.mermaid) {
+    mermaid.initialize({ startOnLoad: false, theme: "neutral" });
+    pending.push(mermaid.run({ querySelector: ".mermaid" }));
+  }
+  if (window.ExcalidrawUtils) {
+    document.querySelectorAll("figure.excalidraw").forEach(function (fig) {
+      var scene;
+      try { scene = JSON.parse(fig.querySelector('script[type="application/json"]').textContent); }
+      catch (e) { return; }
+      var slot = fig.querySelector(".excalidraw-slot");
+      pending.push(Promise.resolve(ExcalidrawUtils.exportToSvg({
+        elements: scene.elements,
+        appState: scene.appState || {},
+        files: scene.files || null
+      })).then(function (svg) { slot.appendChild(svg); }).catch(function () {}));
+    });
+  }
+  if (typeof window.drawCharts === "function" && window.Plot) window.drawCharts();
+
+  var currentId = sequence[0].id;
+  var slideIndex = 0;
+  var progress = document.querySelector(".deck-progress");
+  var counter = document.querySelector(".deck-counter");
+  var sidebarLinks = Array.prototype.slice.call(sidebar.querySelectorAll("a"));
+
+  function setHash(id) {
+    try { history.replaceState(null, "", "#" + id); } catch (e) { location.hash = id; }
+  }
+  function mode() {
+    return body.classList.contains("mode-slides") ? "slides" : body.classList.contains("mode-xr") ? "xr" : "full";
+  }
+  function indexOfId(id) {
+    for (var i = 0; i < sequence.length; i++) if (sequence[i].id === id) return i;
+    return 0;
+  }
+  function showSlide(i, skipHash) {
+    slideIndex = Math.max(0, Math.min(sequence.length - 1, i));
+    sequence.forEach(function (u, k) { u.classList.toggle("current", k === slideIndex); });
+    currentId = sequence[slideIndex].id;
+    progress.style.width = ((slideIndex + 1) / sequence.length * 100) + "%";
+    counter.textContent = (slideIndex + 1) + " / " + sequence.length;
+    if (!skipHash) setHash(currentId);
+  }
+  function markRail() {
+    railDots.forEach(function (dot, i) { dot.classList.toggle("active", sequence[i].id === currentId); });
+  }
+  function markSidebar() {
+    sidebarLinks.forEach(function (a) { a.classList.toggle("active", a.getAttribute("href") === "#" + currentId); });
+  }
+
+  function setMode(next, initial) {
+    var keep = currentId;
+    document.documentElement.classList.remove("mode-xr");
+    body.classList.remove("mode-full", "mode-slides", "mode-xr");
+    body.classList.add("mode-" + next);
+    if (next === "xr") document.documentElement.classList.add("mode-xr");
+    document.querySelectorAll(".mode-switch button").forEach(function (btn) {
+      btn.classList.toggle("active", btn.dataset.mode === next);
+    });
+    if (!initial) {
+      try {
+        var url = new URL(location.href);
+        url.searchParams.set("mode", next);
+        history.replaceState(null, "", url.href);
+      } catch (e) {}
+    }
+    if (next === "slides") {
+      showSlide(indexOfId(keep), initial);
+    } else {
+      sequence.forEach(function (u) { u.classList.remove("current"); });
+      var target = document.getElementById(keep);
+      if (target && !(initial && keep === sequence[0].id)) {
+        requestAnimationFrame(function () { target.scrollIntoView({ behavior: "instant", block: next === "full" ? "start" : "center" }); });
+      }
+      if (next === "xr") { markRail(); observeXr(); }
+      if (next === "full") markSidebar();
+    }
+  }
+
+  document.querySelectorAll(".mode-switch button").forEach(function (btn) {
+    btn.addEventListener("click", function () { setMode(btn.dataset.mode); });
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (mode() !== "slides") return;
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); showSlide(slideIndex + 1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); showSlide(slideIndex - 1); }
+    else if (e.key === "Home") { e.preventDefault(); showSlide(0); }
+    else if (e.key === "End") { e.preventDefault(); showSlide(sequence.length - 1); }
+  });
+  main.addEventListener("click", function (e) {
+    if (mode() !== "slides") return;
+    if (e.target.closest("a, button, details, summary, canvas, svg, input, textarea")) return;
+    var zone = e.clientX / window.innerWidth;
+    showSlide(zone > 0.4 ? slideIndex + 1 : slideIndex - 1);
+  });
+  window.addEventListener("hashchange", function () {
+    var id = location.hash.replace(/^#/, "");
+    if (!document.getElementById(id)) return;
+    currentId = id;
+    if (mode() === "slides") showSlide(indexOfId(id), true);
+    else if (mode() === "xr") markRail();
+    else markSidebar();
+  });
+
+  var xrObserver = null;
+  function observeXr() {
+    if (xrObserver) xrObserver.disconnect();
+    xrObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.querySelector(".unit-body").classList.add("settled");
+        currentId = entry.target.id;
+        markRail();
+        setHash(currentId);
+      });
+    }, { threshold: 0.55 });
+    sequence.forEach(function (u) { xrObserver.observe(u); });
+  }
+
+  var spyTick = false;
+  document.addEventListener("scroll", function () {
+    if (mode() !== "full" || spyTick) return;
+    spyTick = true;
+    requestAnimationFrame(function () {
+      spyTick = false;
+      var best = null;
+      units.forEach(function (u) {
+        if (u.getBoundingClientRect().top <= 130) best = u;
+      });
+      if (best && best.id !== currentId) {
+        currentId = best.id;
+        markSidebar();
+        setHash(currentId);
+      }
+    });
+  }, { passive: true });
+
+  var params = new URLSearchParams(location.search);
+  var requested = params.get("mode");
+  var initialMode = (requested === "full" || requested === "slides" || requested === "xr") ? requested : (body.dataset.defaultMode || "full");
+  var initialHash = location.hash.replace(/^#/, "");
+  if (initialHash && document.getElementById(initialHash)) currentId = initialHash;
+
+  Promise.allSettled(pending).then(function () {
+    setMode(initialMode, true);
+    document.documentElement.classList.remove("prerender");
+  });
+})();
+</script>
+</body>
+</html>
