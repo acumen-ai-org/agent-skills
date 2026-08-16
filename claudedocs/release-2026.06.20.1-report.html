@@ -4,17 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="generator" content="report-compose">
-<title>Demo report — all modes</title>
+<link rel="satellite" href="release-2026.06.20.1-report-pages/quality-findings.html">
+<link rel="satellite" href="release-2026.06.20.1-report-pages/supply-chain-findings.html">
+<link rel="satellite" href="release-2026.06.20.1-report-pages/security-surface.html">
+<title>Captario SUM — Release 2026.06.20.1</title>
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js" integrity="sha384-CjloA8y00+1SDAUkjs099PVfnY2KmDC2BZnws9kh8D/lX1s46w6EPhpXdqMfjK6i" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6.17/dist/plot.umd.min.js" integrity="sha384-JUpn2GgRr0gxU0xOBd8D8P634jhRCwobtG8G2MMEkX1RnGJ7/FJNnuukpfT+H2w1" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.min.js" integrity="sha384-rbtjAdnIQE/aQJGEgXrVUlMibdfTSa4PQju4HDhN3sR2PmaKFzhEafuePsl9H/9I" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.10.0/build/highlight.min.js" integrity="sha384-GdEWAbCjn+ghjX0gLx7/N1hyTVmPAjdC2OvoAA0RyNcAOhqwtT8qnbCxWle2+uJX" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/diff@7.0.0/dist/diff.min.js" integrity="sha384-UeyWE2TKK+s95khAzg8xeTD88VbztEqt1mbxzkzwAPM32TPJSj8Lyg7E7tVXAyRL" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@excalidraw/utils@0.1.2/dist/excalidraw-utils.min.js" integrity="sha384-PKzoxe86QGVlqsE3fJ2YdWcVokf/EDKiaR0xFa8W3pzMltvDYh9VQD2KfEcNnKId" crossorigin="anonymous"></script>
 <script>document.documentElement.classList.add("prerender");</script>
 <style>
 :root {
@@ -414,119 +413,157 @@ body.mode-full footer.report {
   <nav class="area-tabs" aria-label="Areas"></nav>
   <nav class="sidebar" aria-label="Contents"></nav>
   <main id="content">
-    <section class="unit cover" id="cover">
-      <h1>Demo report — all modes</h1>
-      <p>One file, three modes: a scrollable document, a slide deck, and a spatial XR view. Switch with the control in the top-right corner, or open with <code>?mode=slides</code> / <code>?mode=xr</code>.</p>
-      <p class="provenance">2026-07-22 · source: report-compose template demo content</p>
-    </section>
-    <section class="unit" id="tiles-callouts" data-area="Alpha" data-category="Basics" data-menu="Tiles &amp; callouts">
-      <h2>Tiles &amp; callouts</h2>
-      <div class="tiles">
-        <div class="tile ok"><div class="num">98.4%</div><div class="label">Checks passing</div></div>
-        <div class="tile"><div class="num">1,204</div><div class="label">Items processed</div></div>
-        <div class="tile warn"><div class="num">37</div><div class="label">Open warnings</div></div>
-        <div class="tile error"><div class="num">3</div><div class="label">Blocking errors</div></div>
-      </div>
-      <div class="callout ok"><strong>Decision.</strong> A callout carries one decision, warning, or note, colored by its status token.</div>
-      <dl class="kv">
-        <dt>Release</dt><dd>2026.07.1</dd>
-        <dt>Commits</dt><dd>76</dd>
-        <dt>Status</dt><dd><span class="chip warn">needs review</span></dd>
-      </dl>
-    </section>
-    <section class="unit" id="table-sparklines" data-area="Alpha" data-category="Basics" data-menu="Table &amp; sparklines">
-      <h2>Table &amp; sparklines</h2>
-      <div class="data-table">
-        <table>
-          <thead><tr><th>Check</th><th>Status</th><th>Trend</th><th class="num">Duration (s)</th></tr></thead>
-          <tbody>
-            <tr><td>Schema validation</td><td><span class="chip ok">ok</span></td><td><span class="spark" data-values="14,13,12,12,12.4"></span> 12.4</td><td class="num">12.4</td></tr>
-            <tr><td>Dependency audit</td><td><span class="chip warn">warn</span></td><td><span class="spark" data-values="31,35,40,44,48.1"></span> 48.1</td><td class="num">48.1</td></tr>
-            <tr><td>Integration suite</td><td><span class="chip ok">ok</span></td><td><span class="spark" data-values="330,318,325,301,311"></span> 311</td><td class="num">311.0</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-    <section class="unit" id="visualization" data-area="Alpha" data-category="Figures" data-menu="Visualization">
-      <h2>Visualization</h2>
-      <figure class="viz">
-        <div class="viz-slot" id="viz-throughput"></div>
-        <figcaption>Weekly throughput rose from 220 to 310 items between week 1 and week 4; errors fell from 9 to 3.</figcaption>
-      </figure>
-    </section>
-    <section class="unit" id="mermaid-code" data-area="Alpha" data-category="Figures" data-menu="Mermaid &amp; code">
-      <h2>Mermaid &amp; code</h2>
-      <figure>
-        <pre class="mermaid">
-flowchart LR
-  input[Content files] --> author[Authoring model]
-  design[DESIGN.md] --> author
-  author --> out[Single HTML file]
-        </pre>
-        <figcaption>Content plus optional design input become one validated HTML file.</figcaption>
-      </figure>
-      <pre><code class="language-python">def summarize(items):
-    total = sum(item.count for item in items)
-    return {"total": total, "kinds": len(items)}</code></pre>
-    </section>
-    <section class="unit" id="diff-view" data-area="Beta" data-category="Changes" data-menu="Diff view">
-      <h2>Diff view</h2>
-      <figure class="diff">
-        <script type="text/x-old">retries: 2
-timeout: 30
-notify: none</script>
-        <script type="text/x-new">retries: 4
-timeout: 30
-notify: email
-backoff: exponential</script>
-        <figcaption>Retries doubled to 4, email notification and exponential backoff added; timeout unchanged.</figcaption>
-      </figure>
-    </section>
-    <section class="unit" id="excalidraw" data-area="Beta" data-category="Changes" data-menu="Excalidraw">
-      <h2>Excalidraw</h2>
-      <figure class="excalidraw">
-        <script type="application/json">{"type":"excalidraw","version":2,"elements":[
-          {"id":"r1","type":"rectangle","x":0,"y":30,"width":170,"height":70,"angle":0,"strokeColor":"#3f5233","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":2,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":11,"version":1,"versionNonce":11,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false},
-          {"id":"t1","type":"text","x":28,"y":52,"width":120,"height":25,"angle":0,"strokeColor":"#22261f","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":12,"version":1,"versionNonce":12,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false,"text":"Content","fontSize":20,"fontFamily":1,"textAlign":"left","verticalAlign":"top","baseline":18},
-          {"id":"a1","type":"arrow","x":180,"y":65,"width":110,"height":0,"angle":0,"strokeColor":"#22261f","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":2,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":13,"version":1,"versionNonce":13,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false,"points":[[0,0],[110,0]],"lastCommittedPoint":null,"startBinding":null,"endBinding":null,"startArrowhead":null,"endArrowhead":"arrow"},
-          {"id":"r2","type":"rectangle","x":300,"y":30,"width":170,"height":70,"angle":0,"strokeColor":"#8c4a32","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":2,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":14,"version":1,"versionNonce":14,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false},
-          {"id":"t2","type":"text","x":322,"y":52,"width":130,"height":25,"angle":0,"strokeColor":"#22261f","backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,"strokeStyle":"solid","roughness":1,"opacity":100,"seed":15,"version":1,"versionNonce":15,"isDeleted":false,"groupIds":[],"boundElements":null,"updated":1,"link":null,"locked":false,"text":"One file","fontSize":20,"fontFamily":1,"textAlign":"left","verticalAlign":"top","baseline":18}
-        ],"appState":{"viewBackgroundColor":"transparent"}}</script>
-        <div class="excalidraw-slot"></div>
-        <figcaption>Hand-drawn sketch: content flows into one file. The scene JSON is embedded and stays editable on excalidraw.com.</figcaption>
-      </figure>
-    </section>
-  </main>
+<section class="unit cover" id="cover">
+  <h1>Captario SUM — Release 2026.06.20.1</h1>
+  <p>Release review generated from the 2026.06.20.1 report data: 76 commits cut from <code>qa-staging</code> at <code>1d60aafb6</code> on 2026-06-23, analyzed by 13 report fragments across 8 categories. Detail-heavy findings live on satellite pages linked from their sections.</p>
+  <p class="provenance">2026-07-22 · source: release report 2026.06.20.1 data fragments (test/target_example.zip)</p>
+</section>
+<section class="unit" id="release-facts" data-area="Release" data-category="Overview" data-menu="Release facts">
+  <h2>Release facts</h2>
+  <dl class="kv">
+    <dt>Release</dt><dd>2026.06.20.1</dd>
+    <dt>Branch</dt><dd>qa-staging</dd>
+    <dt>Commit</dt><dd>1d60aafb6</dd>
+    <dt>Commits in scope</dt><dd>76</dd>
+    <dt>Created</dt><dd>2026-06-23</dd>
+  </dl>
+  <div class="tiles">
+    <div class="tile ok"><div class="num">2</div><div class="label">Fragments OK</div></div>
+    <div class="tile"><div class="num">1</div><div class="label">Info</div></div>
+    <div class="tile warn"><div class="num">5</div><div class="label">Warnings</div></div>
+    <div class="tile error"><div class="num">5</div><div class="label">Errors</div></div>
+  </div>
+</section>
+<section class="unit" id="published-notes" data-area="Release" data-category="Overview" data-menu="Published notes">
+  <h2>Published notes</h2>
+  <p>The customer-facing story: a refreshed, consistent design across Captario SUM; large portfolios and workbooks open faster; modeling copies, restores, and compositions behave predictably.</p>
+  <ul>
+    <li>One consistent look across navigation, tabs, forms, and buttons</li>
+    <li>Portfolios load only the data the current view needs</li>
+    <li>Model copy and change-replay carry values through reliably; portfolio-level account overrides cascade to projects</li>
+    <li>Clearer messages when a modeling action cannot be applied</li>
+    <li>Sign-in and workspace fixes round out the update</li>
+  </ul>
+</section>
+<section class="unit" id="arch-source" data-area="Analysis" data-category="Architecture" data-menu="Source scan">
+  <h2>Source scan</h2>
+  <div class="tiles">
+    <div class="tile"><div class="num">2,116</div><div class="label">Modules</div></div>
+    <div class="tile"><div class="num">4,238</div><div class="label">Dependencies</div></div>
+    <div class="tile warn"><div class="num">45</div><div class="label">Dependency cycles</div></div>
+    <div class="tile"><div class="num">13</div><div class="label">Max depth</div></div>
+  </div>
+  <p>Source-scanned (no analyzer configured) — the structural picture, not a semantic one.</p>
+</section>
+<section class="unit" id="arch-truecourse" data-area="Analysis" data-category="Architecture" data-menu="TrueCourse architecture">
+  <h2>TrueCourse architecture</h2>
+  <div class="callout error"><strong>915 findings.</strong> 664 architecture findings and 251 business-logic drifts — the largest architecture signal in the release, severity 95.</div>
+</section>
+<section class="unit" id="supply-chain" data-area="Analysis" data-category="Dependencies" data-menu="Supply chain">
+  <h2>Supply chain</h2>
+  <figure class="viz">
+    <div class="viz-slot" id="viz-vuln"></div>
+    <figcaption>114 unique vulnerable dependency findings across 37 of 37 scanned packages: 2 critical, 37 high, 65 medium, 10 low.</figcaption>
+  </figure>
+  <a class="page-link" href="release-2026.06.20.1-report-pages/supply-chain-findings.html">All 114 findings per library and CVE <span class="hint">satellite page</span></a>
+</section>
+<section class="unit" id="author-activity" data-area="Analysis" data-category="Evolution" data-menu="Author activity">
+  <h2>Author activity</h2>
+  <p>73 PR-units across 9 authors; 1 product innovator.</p>
+  <div class="data-table">
+    <table>
+      <thead><tr><th>PR kind</th><th class="num">Count</th></tr></thead>
+      <tbody>
+        <tr><td>Bug fixes</td><td class="num">33</td></tr>
+        <tr><td>Existing pattern</td><td class="num">29</td></tr>
+        <tr><td>Updated features</td><td class="num">24</td></tr>
+        <tr><td>Technical</td><td class="num">8</td></tr>
+        <tr><td>New features</td><td class="num">5</td></tr>
+        <tr><td>Configuration</td><td class="num">3</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section class="unit" id="repo-evolution" data-area="Analysis" data-category="Evolution" data-menu="Repository evolution">
+  <h2>Repository evolution</h2>
+  <dl class="kv">
+    <dt>Files changed</dt><dd>2,097</dd>
+    <dt>Lines added</dt><dd>131,164</dd>
+    <dt>Lines removed</dt><dd>136,818</dd>
+    <dt>Extensions touched</dt><dd>36</dd>
+    <dt>Coupled file pairs</dt><dd>0</dd>
+  </dl>
+  <p>The release removes more lines than it adds — consistent with the design-refresh consolidation in the published notes.</p>
+</section>
+<section class="unit" id="quality-semgrep" data-area="Analysis" data-category="Quality" data-menu="Semgrep &amp; policy">
+  <h2>Semgrep &amp; policy</h2>
+  <p>The code-quality scan reports <strong>0 errors, 1 warning, 0 info</strong>.</p>
+  <div class="callout warn"><strong>Open redirect (warning).</strong> <code>js-open-redirect</code> at <code>legacy-auth/wwwroot/login.js:73</code> — potentially user-controlled input can control the window location. Validate before allowing it to control redirection.</div>
+</section>
+<section class="unit" id="quality-truecourse" data-area="Analysis" data-category="Quality" data-menu="TrueCourse code health">
+  <h2>TrueCourse code health</h2>
+  <div class="callout error"><strong>28,182 findings.</strong> 28,032 code-health findings and 150 security findings — the deepest backlog surfaced by the release analysis.</div>
+  <a class="page-link" href="release-2026.06.20.1-report-pages/quality-findings.html">Every code-health and security finding <span class="hint">satellite page</span></a>
+</section>
+<section class="unit" id="schema-surface" data-area="Analysis" data-category="Schema &amp; security" data-menu="Schema surface">
+  <h2>Schema surface</h2>
+  <div class="tiles">
+    <div class="tile warn"><div class="num">383</div><div class="label">Non-breaking changes</div></div>
+    <div class="tile ok"><div class="num">0</div><div class="label">Public breaking</div></div>
+    <div class="tile ok"><div class="num">0</div><div class="label">Private breaking</div></div>
+  </div>
+</section>
+<section class="unit" id="attack-surface" data-area="Analysis" data-category="Schema &amp; security" data-menu="Attack surface">
+  <h2>Attack surface</h2>
+  <dl class="kv">
+    <dt>Network ingress points</dt><dd>360</dd>
+    <dt>Network egress points</dt><dd>36</dd>
+    <dt>Secrets found</dt><dd>0</dd>
+    <dt>Semgrep security</dt><dd>10 error · 3 warning</dd>
+  </dl>
+  <a class="page-link" href="release-2026.06.20.1-report-pages/security-surface.html">Ingress, egress, and finding detail <span class="hint">satellite page</span></a>
+</section>
+<section class="unit" id="producer-status" data-area="Report" data-category="Build" data-menu="Producer status">
+  <h2>Producer status</h2>
+  <div class="tiles">
+    <div class="tile"><div class="num">17</div><div class="label">Producers</div></div>
+    <div class="tile ok"><div class="num">13</div><div class="label">OK</div></div>
+    <div class="tile ok"><div class="num">0</div><div class="label">Failed</div></div>
+    <div class="tile warn"><div class="num">4</div><div class="label">Skipped</div></div>
+  </div>
+  <p>Two producers ran degraded paths: the architecture scan used source scanning (depcruise/madge not configured) and the evolution producer skipped its code-maat and git-of-theseus enrichers.</p>
+</section>
+<section class="unit" id="release-diff" data-area="Report" data-category="Build" data-menu="Release diff">
+  <h2>Release diff</h2>
+  <p>Four diff perspectives computed across <code>8e3b784</code> → <code>7fc8f4a</code>; the fragment reports status error with no summary emitted — the diff data exists but its rollup did not.</p>
+</section>
+</main>
 </div>
 <footer class="report">
-  Generated by report-compose on 2026-07-22.
-  Pinned dependencies: d3 7.9.0, plot 0.6.17, mermaid 11.4.1, highlight.js 11.10.0, jsdiff 7.0.0, excalidraw-utils 0.1.2 — content remains readable without them.
+  Generated by report-compose on 2026-07-22 from release report 2026.06.20.1 data fragments (test/target_example.zip).
+  Pinned dependencies: d3, plot — content remains readable without them.
 </footer>
 <script>
 window.drawCharts = function () {
-  var accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#3f5233";
-  var error = "#8c4a32";
-  var data = [
-    { week: 1, throughput: 220, errors: 9 },
-    { week: 2, throughput: 255, errors: 7 },
-    { week: 3, throughput: 290, errors: 4 },
-    { week: 4, throughput: 310, errors: 3 }
-  ];
+  var styles = getComputedStyle(document.documentElement);
   var chart = Plot.plot({
     width: 620,
-    height: 260,
-    marginLeft: 50,
+    height: 240,
+    marginLeft: 70,
     style: { background: "transparent", fontSize: "12px" },
-    x: { label: "Week", ticks: 4 },
-    y: { label: "Items", grid: true },
+    x: { label: "Findings", grid: true },
+    y: { label: null, domain: ["Critical", "High", "Medium", "Low"] },
     marks: [
-      Plot.lineY(data, { x: "week", y: "throughput", stroke: accent, strokeWidth: 2 }),
-      Plot.dot(data, { x: "week", y: "throughput", fill: accent }),
-      Plot.lineY(data, { x: "week", y: "errors", stroke: error, strokeWidth: 2 }),
-      Plot.dot(data, { x: "week", y: "errors", fill: error })
+      Plot.barX([
+        { sev: "Critical", n: 2 },
+        { sev: "High", n: 37 },
+        { sev: "Medium", n: 65 },
+        { sev: "Low", n: 10 }
+      ], { x: "n", y: "sev", fill: styles.getPropertyValue("--accent").trim() }),
+      Plot.ruleX([0])
     ]
   });
-  document.getElementById("viz-throughput").appendChild(chart);
+  document.getElementById("viz-vuln").appendChild(chart);
 };
 </script>
 <script>
